@@ -71,12 +71,17 @@ This implementation addresses two main issues with the 4DO Android emulator proj
 - Tablets: ≥ 600dp smallest width
 
 **Activity-Specific Behavior:**
-- **MainActivity**: Dynamic orientation (portrait on phones, landscape on tablets)
+- **MainActivity**: Dynamic orientation (portrait on phones, landscape on tablets and flip devices)
 - **EmulatorActivity**: 
   - Phones: Allow rotation (landscape preferred for gameplay)
-  - Tablets: Lock to landscape (better emulator experience)
+  - Tablets and flip devices: Lock to landscape (better emulator experience)
 - **NewControllerMapperActivity**: Portrait-only (better for button layout)
 - **Other Activities**: Support orientation changes gracefully
+
+**Flip Tablet Support:**
+- **Retroid Pocket Flip**: Automatically detected and treated as tablet
+- **Other Flip Devices**: Detected by model name containing "flip", "retroid", or "pocket"
+- **Optimal Threshold**: 480dp minimum width for flip tablets (vs 600dp for regular tablets)
 
 **State Preservation:**
 - NVRAM auto-save on pause/destroy

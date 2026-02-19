@@ -90,6 +90,17 @@ public class DeviceOrientationManager {
         float heightDp = displayMetrics.heightPixels / displayMetrics.density;
         float smallestWidthDp = Math.min(widthDp, heightDp);
         
+        // Check for flip tablets like Retroid Pocket Flip
+        String deviceModel = android.os.Build.MODEL.toLowerCase();
+        boolean isFlipTablet = deviceModel.contains("retroid") || 
+                               deviceModel.contains("flip") ||
+                               deviceModel.contains("pocket");
+        
+        // For flip tablets, use a lower threshold since they're smaller but should be treated as tablets
+        if (isFlipTablet) {
+            return smallestWidthDp >= 480f; // Lower threshold for flip tablets
+        }
+        
         return smallestWidthDp >= TABLET_DP_THRESHOLD;
     }
     
