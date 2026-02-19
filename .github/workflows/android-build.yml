@@ -60,13 +60,13 @@ jobs:
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
     - name: Upload Debug APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: debug-apk
         path: app/build/outputs/apk/debug/app-debug.apk
 
     - name: Upload Release APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: release-apk
         path: app/build/outputs/apk/release/app-release.apk
@@ -122,7 +122,7 @@ jobs:
       run: ./gradlew lint
 
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: test-results
