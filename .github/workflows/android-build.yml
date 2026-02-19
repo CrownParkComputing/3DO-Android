@@ -93,6 +93,50 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Create GitHub Release for Successful Builds
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        name: Release v${{ steps.version.outputs.version }}
+        body: |
+          Automated release from commit ${{ github.sha }}
+          
+          **Changes in this release:**
+          - Automated build and signing
+          - CI/CD pipeline improvements
+          - Orientation handling fixes
+          
+          **Build Information:**
+          - Commit: ${{ github.sha }}
+          - Branch: ${{ github.ref_name }}
+          - Build Time: ${{ steps.timestamp.outputs.timestamp }}
+        files: |
+          app/build/outputs/apk/release/app-release.apk
+          app/build/outputs/apk/debug/app-debug.apk
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Auto-bump version for next release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: |
+        # Only bump version if this is not already a version bump commit
+        if [[ "${{ github.event.head_commit.message }}" != *"Bump version to"* ]]; then
+          echo "Auto-bumping version for next release..."
+          ./scripts/bump_version.sh patch
+          
+          # Push the version bump commit
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git push origin HEAD:${{ github.ref_name }}
+        else
+          echo "Skipping version bump - this is already a version bump commit"
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     runs-on: ubuntu-latest
     needs: build
@@ -114,6 +158,19 @@ jobs:
 
     - name: Make Gradle wrapper executable
       run: chmod +x ./gradlew
+
+    - name: Extract version information
+      id: version
+      run: |
+        VERSION_CODE=$(grep "versionCode" app/build.gradle | grep -o '[0-9]*')
+        VERSION_NAME=$(grep "versionName" app/build.gradle | grep -o '"[^"]*"' | tr -d '"')
+        echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+        echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+        echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
+
+    - name: Generate timestamp
+      id: timestamp
+      run: echo "timestamp=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
 
     - name: Run unit tests
       run: ./gradlew test

@@ -41,6 +41,14 @@ The workflow runs automatically on:
 - Pull requests to `main` or `master` branches
 - New releases (tags)
 
+### Version Management
+- **Automatic Version Bumping**: After successful builds on main/master, the version is automatically incremented
+- **Manual Version Bumping**: Use the provided scripts to manually bump versions
+- **Version Scripts**: 
+  - `scripts/bump_version.sh` (Linux/macOS)
+  - `scripts/bump_version.bat` (Windows)
+- **Usage**: `./scripts/bump_version.sh [major|minor|patch]` (default: patch)
+
 ### Build Process
 1. **Setup**: Installs JDK 17 and Gradle 8.2.2
 2. **Caching**: Caches Gradle and Android dependencies for faster builds
@@ -52,6 +60,7 @@ The workflow runs automatically on:
 ### Artifacts
 - Debug APK: Available as workflow artifact
 - Release APK: Available as workflow artifact and GitHub release asset
+- **Automatic Releases**: Successful builds on main/master are automatically published as GitHub releases
 
 ## Security Notes
 

@@ -15,6 +15,9 @@ public class SplashActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_splash);
 
+        // Set optimal orientation based on device type to avoid rotation
+        DeviceOrientationManager.setOptimalMainActivityOrientation(this);
+
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
