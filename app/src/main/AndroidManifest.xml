@@ -24,45 +24,46 @@
         <activity
             android:name=".MainActivity"
             android:exported="false"
-            android:screenOrientation="portrait">
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize"
+            android:launchMode="singleTop">
         </activity>
         
         <activity
             android:name=".EmulatorActivity"
             android:exported="false"
-            android:screenOrientation="landscape"
-            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize"
             android:launchMode="singleTop">
         </activity>
         
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
-            android:screenOrientation="portrait">
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize">
         </activity>
         
         <activity
             android:name=".FileBrowserActivity"
             android:exported="false"
-            android:screenOrientation="portrait">
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize">
         </activity>
 
 <activity
     android:name=".GameLibraryActivity"
     android:exported="false"
-    android:screenOrientation="portrait">
+    android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize">
 </activity>
 
 <activity
     android:name=".CDLoadingActivity"
     android:exported="false"
-    android:screenOrientation="portrait">
+    android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize">
 </activity>
 
 <activity
     android:name=".NewControllerMapperActivity"
     android:exported="false"
-    android:screenOrientation="portrait">
+    android:screenOrientation="portrait"
+    android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize">
 </activity>
 
 </application>

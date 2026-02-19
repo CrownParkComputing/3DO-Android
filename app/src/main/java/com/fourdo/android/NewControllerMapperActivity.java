@@ -1,6 +1,7 @@
 package com.fourdo.android;
 
 import android.app.Activity;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -32,6 +33,9 @@ public class NewControllerMapperActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_new_controller_mapper);
+        
+        // Ensure portrait orientation for controller mapping
+        DeviceOrientationManager.setPortraitOrientation(this);
 
         buttonA = findViewById(R.id.button_a);
         buttonB = findViewById(R.id.button_b);
@@ -123,6 +127,13 @@ public class NewControllerMapperActivity extends Activity {
             return true;
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // Ensure we stay in portrait mode for controller mapping
+        DeviceOrientationManager.setPortraitOrientation(this);
     }
 
     private void refreshButtonLabels() {

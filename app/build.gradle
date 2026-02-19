@@ -2,14 +2,14 @@ apply plugin: 'com.android.application'
 
 android {
     namespace "com.fourdo.android"
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.fourdo.android"
         minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        targetSdk 35
+        versionCode 2
+        versionName "2.0"
 
         externalNativeBuild {
             cmake {
@@ -19,10 +19,20 @@ android {
         }
     }
 
+    signingConfigs {
+        release {
+            storeFile file('../4do-release-key.keystore')
+            storePassword 'android'
+            keyAlias '4do-key'
+            keyPassword 'android'
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 

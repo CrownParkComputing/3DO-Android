@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioManager;
@@ -68,6 +69,9 @@ public class EmulatorActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Set optimal orientation based on device type
+        DeviceOrientationManager.setOptimalEmulatorOrientation(this);
         
         // Keep screen on during emulation
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -613,6 +617,21 @@ public class EmulatorActivity extends AppCompatActivity {
         stopAudioPlayback();
         shutdownEmulator();
         cleanupRenderer();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // Handle orientation changes for emulator
+        DeviceOrientationManager.handleEmulatorOrientationChange(this);
+        
+        // If we're in landscape and have a surface, reinitialize renderer
+        if (DeviceOrientationManager.isLandscape(this) && emulatorSurfaceView != null) {
+            SurfaceHolder holder = emulatorSurfaceView.getHolder();
+            if (holder.getSurface() != null && !holder.getSurface().isValid()) {
+                initRenderer(emulatorSurfaceView.getWidth(), emulatorSurfaceView.getHeight());
+            }
+        }
     }
 
     // Native methods
