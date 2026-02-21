@@ -11,9 +11,12 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class FileBrowserActivity extends AppCompatActivity {
@@ -88,21 +91,64 @@ public class FileBrowserActivity extends AppCompatActivity {
     }
 
     private void loadFileList(File dir) {
-        currentPathTextView.setText(dir.getAbsolutePath());
+        // Display user-friendly path
+        String displayPath = getDisplayPath(dir);
+        currentPathTextView.setText(displayPath);
 
         File[] files = dir.listFiles();
         fileList = new ArrayList<>();
         filePathList = new ArrayList<>();
 
         if (files != null) {
+            // Sort: folders first, then files, both alphabetically
+            List<File> sortedFiles = new ArrayList<>();
             for (File file : files) {
-                fileList.add(file.getName());
+                sortedFiles.add(file);
+            }
+            Collections.sort(sortedFiles, new Comparator<File>() {
+                @Override
+                public int compare(File a, File b) {
+                    if (a.isDirectory() && !b.isDirectory()) {
+                        return -1;
+                    }
+                    if (!a.isDirectory() && b.isDirectory()) {
+                        return 1;
+                    }
+                    return a.getName().compareToIgnoreCase(b.getName());
+                }
+            });
+            
+            for (File file : sortedFiles) {
+                String displayName = file.getName();
+                if (file.isDirectory()) {
+                    displayName = "[" + file.getName() + "]";
+                }
+                fileList.add(displayName);
                 filePathList.add(file.getAbsolutePath());
             }
+        }
+
+        if (fileList.isEmpty()) {
+            fileList.add("(empty or no access)");
+            filePathList.add("");
         }
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_list_item_1, fileList);
         fileListView.setAdapter(adapter);
+    }
+    
+    private String getDisplayPath(File dir) {
+        String path = dir.getAbsolutePath();
+        // Try to show a more user-friendly path
+        String externalStorage = Environment.getExternalStorageDirectory().getAbsolutePath();
+        if (path.startsWith(externalStorage)) {
+            String relative = path.substring(externalStorage.length());
+            if (relative.isEmpty()) {
+                return "Storage";
+            }
+            return "Storage" + relative;
+        }
+        return path;
     }
 }

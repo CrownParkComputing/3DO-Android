@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="16dp"
+    android:background="#252547">
+
+    <!-- Cover Image -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        
+        <ImageView
+            android:id="@+id/detail_cover"
+            android:layout_width="200dp"
+            android:layout_height="280dp"
+            android:scaleType="centerCrop"
+            android:background="#333355"
+            android:src="@mipmap/ic_launcher" />
+
+        <Button
+            android:id="@+id/change_cover_button"
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:text="Change Cover"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#666666"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <!-- Game Info -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="16dp">
+
+        <TextView
+            android:id="@+id/detail_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/detail_year"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#88CCFF"
+            android:textSize="14sp"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:id="@+id/detail_publisher"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp"
+            android:layout_marginBottom="12dp" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:id="@+id/detail_summary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#CCCCCC"
+                android:textSize="14sp"
+                android:lineSpacingExtra="4dp" />
+
+        </ScrollView>
+
+        <!-- Buttons Row 1 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/correct_game_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Correct Game Info"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#886600"
+                android:layout_marginEnd="8dp" />
+
+        </LinearLayout>
+
+        <!-- Buttons Row 2 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end">
+
+            <Button
+                android:id="@+id/cancel_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cancel"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#666666"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/play_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play Game"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#44AA44"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -22,9 +22,9 @@ android {
     signingConfigs {
         release {
             storeFile file('../4do-release-key.keystore')
-            storePassword 'android'
+            storePassword System.getenv('KEYSTORE_PASSWORD') ?: 'android'
             keyAlias '4do-key'
-            keyPassword 'android'
+            keyPassword System.getenv('KEY_PASSWORD') ?: 'android'
         }
     }
 

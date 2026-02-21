@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Window;
+import android.view.WindowManager;
 
 public class SplashActivity extends Activity {
 
@@ -13,16 +15,25 @@ public class SplashActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Ensure fullscreen mode
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        
         setContentView(R.layout.activity_splash);
-
-        // Set optimal orientation based on device type to avoid rotation
-        DeviceOrientationManager.setOptimalMainActivityOrientation(this);
 
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
-                Intent intent = new Intent(SplashActivity.this, MainActivity.class);
-                startActivity(intent);
+                // Check if setup has been completed
+                if (!SetupWizardActivity.isSetupCompleted(SplashActivity.this)) {
+                    // First time user - show setup wizard
+                    SetupWizardActivity.start(SplashActivity.this);
+                } else {
+                    // Setup complete - go to game library
+                    Intent intent = new Intent(SplashActivity.this, GameLibraryActivity.class);
+                    startActivity(intent);
+                }
                 finish();
             }
         }, SPLASH_DURATION_MS);

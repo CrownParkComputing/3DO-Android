@@ -75,8 +75,14 @@ Java_com_fourdo_android_EmulatorActivity_initEmulator(JNIEnv* env, jobject thiz,
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
     
     if (!g_sdl_initialized) {
-        LOGE("SDL not initialized, cannot start emulator");
-        return JNI_FALSE;
+        LOGD("SDL not initialized for EmulatorActivity flow, initializing now...");
+        int sdl_result = sdl_init();
+        if (sdl_result != 0) {
+            LOGE("SDL auto-initialization failed: %d", sdl_result);
+            return JNI_FALSE;
+        }
+        g_sdl_initialized = true;
+        LOGD("SDL auto-initialized successfully");
     }
     
     if (g_emulator_running) {

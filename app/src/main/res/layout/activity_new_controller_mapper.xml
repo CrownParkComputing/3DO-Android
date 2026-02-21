@@ -34,11 +34,6 @@
             android:src="@drawable/controller_3do"
             android:contentDescription="3DO Controller" />
 
-        <FrameLayout
-            android:id="@+id/highlight_container"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
     </FrameLayout>
 
     <LinearLayout

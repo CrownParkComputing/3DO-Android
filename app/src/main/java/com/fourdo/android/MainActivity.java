@@ -2,9 +2,10 @@ package com.fourdo.android;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.content.res.Configuration;
 import android.os.Bundle;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.Toast;
 
@@ -25,10 +26,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Ensure fullscreen mode
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        
         setContentView(R.layout.activity_main);
-
-        // Set optimal orientation based on device type
-        DeviceOrientationManager.setOptimalMainActivityOrientation(this);
 
         startEmulatorButton = findViewById(R.id.start_button);
         settingsButton = findViewById(R.id.settings_button);
@@ -62,13 +65,6 @@ public class MainActivity extends Activity {
         super.onDestroy();
         // Clean up SDL when the app exits
         shutdownSDL();
-    }
-
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        // Re-apply optimal orientation when configuration changes
-        DeviceOrientationManager.setOptimalMainActivityOrientation(this);
     }
 
     // Native methods

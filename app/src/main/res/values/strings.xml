@@ -33,4 +33,33 @@
     <string name="dpad_left">←</string>
     <string name="dpad_right">→</string>
     <string name="controller_map_button">Controller Map</string>
+    
+    <!-- Setup Wizard -->
+    <string name="setup_title">4DO Setup Wizard</string>
+    <string name="setup_next">Next</string>
+    <string name="setup_back">Back</string>
+    <string name="setup_launch">Start Playing!</string>
+    
+    <!-- Welcome Step -->
+    <string name="setup_welcome_title">Welcome to 4DO Android!</string>
+    <string name="setup_welcome_text">This wizard will help you set up the 3DO emulator.\n\nYou will need:</string>
+    <string name="setup_welcome_steps">1. A 3DO BIOS file (.bin or .rom)\n2. A game disc image to play\n\nThe parent folders will be auto-detected for future use.</string>
+    
+    <!-- BIOS File Step -->
+    <string name="setup_bios_title">Step 1: Select BIOS File</string>
+    <string name="setup_bios_explanation">Select your 3DO BIOS file.\n\nCommon BIOS files:\n• panafz10.bin (Panasonic FZ-10)\n• panafz1.bin (Panasonic FZ-1)\n• goldstar.bin (Goldstar)\n\nIf you don\'t have a BIOS, search for "3DO BIOS" online.</string>
+    <string name="setup_select_bios">Select BIOS File</string>
+    <string name="setup_bios_not_selected">No BIOS selected</string>
+    <string name="setup_bios_selected">BIOS: %1$s</string>
+    <string name="setup_bios_required">Please select a BIOS file to continue</string>
+    <string name="setup_invalid_bios">Invalid BIOS file. Please select a .bin or .rom file.</string>
+    
+    <!-- Game Step -->
+    <string name="setup_game_title">Step 2: Select Your First Game</string>
+    <string name="setup_game_explanation">Select a game disc image to play!\n\nSupported formats: .cue, .iso, .chd\n\nThe parent folder will be set as your games library.</string>
+    <string name="setup_select_game">Select Game</string>
+    <string name="setup_game_not_selected">No game selected</string>
+    <string name="setup_game_selected">Game: %1$s</string>
+    <string name="setup_game_required">Please select a game to continue</string>
+    <string name="setup_invalid_game">Invalid game file. Please select a .cue, .iso, .chd, or .bin file.</string>
 </resources>

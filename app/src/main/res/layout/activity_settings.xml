@@ -1,80 +1,187 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#1a1a2e"
     tools:context=".SettingsActivity">
 
-    <TextView
-        android:id="@+id/settings_title"
-        android:layout_width="wrap_content"
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/settings"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_chainStyle="packed"
-        app:layout_constraintVertical_weight="1" />
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:gravity="center_vertical"
+        android:background="#252547">
 
-    <TextView
-        android:id="@+id/bios_path_text"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="24dp"
-        android:layout_marginEnd="24dp"
-        android:gravity="center"
-        android:text="@string/bios_not_set"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/settings_title" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/settings"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold" />
 
-    <Button
-        android:id="@+id/select_bios_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/select_bios"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/bios_path_text" />
+    </LinearLayout>
 
-    <TextView
-        android:id="@+id/library_path_text"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="24dp"
-        android:layout_marginEnd="24dp"
-        android:gravity="center"
-        android:text="@string/library_not_set"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/select_bios_button" />
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="16dp">
 
-    <Button
-        android:id="@+id/select_library_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/select_library"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/library_path_text" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
+            <!-- BIOS Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="BIOS Configuration"
+                android:textColor="#4488FF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/bios_path_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/bios_not_set"
+                android:textColor="#AAAAAA"
+                android:padding="12dp"
+                android:background="#252547"
+                android:layout_marginBottom="8dp" />
+
+            <Button
+                android:id="@+id/select_bios_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/select_bios"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#4488FF"
+                android:layout_marginBottom="24dp" />
+
+            <!-- Library Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Game Library"
+                android:textColor="#4488FF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/library_path_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/library_not_set"
+                android:textColor="#AAAAAA"
+                android:padding="12dp"
+                android:background="#252547"
+                android:layout_marginBottom="8dp" />
+
+            <Button
+                android:id="@+id/select_library_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/select_library"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#4488FF"
+                android:layout_marginBottom="24dp" />
+
+            <!-- Controller Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Controllers"
+                android:textColor="#4488FF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <Button
+                android:id="@+id/controller_mapper_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Configure Controller Mapping"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#666666"
+                android:layout_marginBottom="24dp" />
+
+            <!-- Display Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Display"
+                android:textColor="#4488FF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Library View Style"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="4dp" />
+
+            <Spinner
+                android:id="@+id/view_style_spinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#252547"
+                android:padding="8dp"
+                android:layout_marginBottom="24dp" />
+
+            <!-- Data Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Data"
+                android:textColor="#4488FF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <Button
+                android:id="@+id/clear_cache_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Clear IGDB Cache"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#AA4444"
+                android:layout_marginBottom="8dp" />
+
+            <Button
+                android:id="@+id/view_logs_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="View Logs"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#666666"
+                android:layout_marginBottom="24dp" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+    <!-- Bottom Button -->
     <Button
         android:id="@+id/back_button"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_margin="16dp"
         android:text="@string/back"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/select_library_button"
-        app:layout_constraintVertical_chainStyle="packed"
-        app:layout_constraintVertical_weight="1" />
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#333366" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>

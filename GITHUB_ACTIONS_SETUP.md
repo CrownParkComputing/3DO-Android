@@ -1,98 +1,111 @@
 # GitHub Actions CI/CD Setup
 
-This document explains how to configure GitHub Actions for the 4DO Android project.
+This document explains how CI/CD is configured for the 4DO Android project.
 
-## Required Secrets
+## Workflow File
 
-To enable the CI/CD pipeline, you need to add the following secrets to your GitHub repository:
+- Workflow: `.github/workflows/android-build.yml`
+- Name: `Android CI/CD`
 
-### 1. KEYSTORE_PASSWORD
-- **Purpose**: Password for the keystore file (`4do-release-key.keystore`)
-- **Value**: `android` (default password used in the project)
-- **How to add**: 
-  1. Go to your repository on GitHub
-  2. Click on "Settings" tab
-  3. In the left sidebar, click "Secrets and variables" → "Actions"
-  4. Click "New repository secret"
-  5. Name: `KEYSTORE_PASSWORD`
-  6. Value: `android`
-  7. Click "Add secret"
+## Triggers
 
-### 2. KEY_PASSWORD
-- **Purpose**: Password for the signing key within the keystore
-- **Value**: `android` (default password used in the project)
-- **How to add**: Same steps as above, but with:
-  - Name: `KEY_PASSWORD`
-  - Value: `android`
+The workflow runs on:
 
-### Signing Key Configuration
-The project already includes a signing key:
-- **File**: `4do-release-key.keystore` (located in project root)
-- **Key Alias**: `4do-key`
-- **Store Password**: `android`
-- **Key Password**: `android`
-- **Configuration**: Already set up in `app/build.gradle`
+- Push to `main` or `master`
+- Pull requests targeting `main` or `master`
+- Push of version tags matching `v*` (for example `v2.0.1`)
+- Manual run from GitHub Actions (`workflow_dispatch`)
 
-## Workflow Features
+## Jobs and Behavior
 
-### Build Triggers
-The workflow runs automatically on:
-- Push to `main` or `master` branches
-- Pull requests to `main` or `master` branches
-- New releases (tags)
+### 1) CI job (`ci`)
 
-### Version Management
-- **Automatic Version Bumping**: After successful builds on main/master, the version is automatically incremented
-- **Manual Version Bumping**: Use the provided scripts to manually bump versions
-- **Version Scripts**: 
-  - `scripts/bump_version.sh` (Linux/macOS)
-  - `scripts/bump_version.bat` (Windows)
-- **Usage**: `./scripts/bump_version.sh [major|minor|patch]` (default: patch)
+Runs on every branch push/PR/tag/manual trigger and does:
 
-### Build Process
-1. **Setup**: Installs JDK 17 and Gradle 8.2.2
-2. **Caching**: Caches Gradle and Android dependencies for faster builds
-3. **Build**: Creates both debug and release APKs
-4. **Testing**: Runs unit tests and lint checks
-5. **Signing**: Signs release APKs for production releases
-6. **Deployment**: Uploads APKs to GitHub releases for tagged releases
+1. Set up JDK 17
+2. Set up Gradle using the project wrapper
+3. Run unit tests (`./gradlew --no-daemon test`)
+4. Run lint (`./gradlew --no-daemon lint`)
+5. Build debug APK (`./gradlew --no-daemon assembleDebug`)
+6. Upload debug APK artifact
 
-### Artifacts
-- Debug APK: Available as workflow artifact
-- Release APK: Available as workflow artifact and GitHub release asset
-- **Automatic Releases**: Successful builds on main/master are automatically published as GitHub releases
+If tests or lint fail, reports are uploaded as artifacts.
 
-## Security Notes
+### 2) Release job (`release`)
 
-- The keystore file (`4do-release-key.keystore`) is already committed to the repository
-- The passwords are set to the default Android values (`android`)
-- For production use, consider:
-  - Using a more secure keystore password
-  - Storing the keystore file as a GitHub secret instead of in the repository
-  - Using different passwords for keystore and key
+Runs only when the ref is a tag starting with `v`.
 
-## Manual Build
+1. Builds signed release APK (`./gradlew --no-daemon assembleRelease`)
+2. Uploads release APK artifact
+3. Publishes/updates GitHub release for the same tag
+4. Attaches the release APK to that GitHub release
 
-You can also trigger a manual build by:
-1. Going to the "Actions" tab in your repository
-2. Selecting "Android CI/CD" workflow
-3. Clicking "Run workflow"
+## Required Repository Secrets
+
+Release signing uses these repository secrets:
+
+- `KEYSTORE_PASSWORD`
+- `KEY_PASSWORD`
+
+Add them in GitHub:
+
+1. Repository → **Settings**
+2. **Secrets and variables** → **Actions**
+3. **New repository secret**
+
+> Note: `app/build.gradle` now reads these from environment variables with fallback defaults (`android`) for local development.
+
+## Release Process
+
+To create a production release via CI/CD:
+
+1. Update app version in `app/build.gradle` (versionName/versionCode)
+2. Commit and push changes
+3. Create and push a tag, for example:
+
+```bash
+git tag v2.0.1
+git push origin v2.0.1
+```
+
+This triggers the release job and publishes the signed APK as a GitHub Release asset.
+
+## Optional: Generate New Signing Keys
+
+Linux/macOS:
+
+```bash
+./scripts/create_signing_keys.sh
+```
+
+Windows:
+
+```cmd
+scripts\create_signing_keys.bat
+```
+
+After generating new keys, update secrets to match the new passwords.
+
+## Security Recommendations
+
+- Avoid default passwords (`android`) for production use
+- Keep signing credentials in GitHub secrets
+- Restrict who can create release tags
 
 ## Troubleshooting
 
-### Build Failures
-- Check that all required secrets are properly configured
-- Verify the keystore file exists and is not corrupted
-- Ensure the passwords match the keystore configuration
+### Release job didn’t run
 
-### Signing Issues
-- Verify `KEYSTORE_PASSWORD` and `KEY_PASSWORD` secrets are correct
-- Check that the keystore alias (`4do-key`) matches the workflow configuration
-- Ensure the keystore file exists in the repository root
-- Verify the keystore file has the correct permissions
-- Check that the passwords match the keystore configuration in `app/build.gradle`
+- Confirm the ref is a tag like `v1.2.3`
+- Confirm the tag was pushed to origin (`git push origin <tag>`)
 
-### Gradle Issues
-- The workflow uses Gradle 8.2.2 to match the project configuration
-- Caching helps speed up dependency resolution
-- Clean builds are performed to ensure consistency
+### Signing failed
+
+- Verify `KEYSTORE_PASSWORD` and `KEY_PASSWORD` are set and correct
+- Confirm keystore alias is `4do-key`
+- Confirm `4do-release-key.keystore` exists at repository root
+
+### Build/test/lint failed
+
+- Download the workflow artifacts (debug APK/report artifacts)
+- Inspect test and lint reports for detailed failure output

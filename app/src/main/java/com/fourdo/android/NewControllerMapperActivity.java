@@ -7,8 +7,6 @@ import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.Toast;
 
 public class NewControllerMapperActivity extends Activity {
@@ -25,8 +23,6 @@ public class NewControllerMapperActivity extends Activity {
     private Button buttonL1;
     private Button buttonR1;
     private Button backButton;
-    private FrameLayout highlightContainer;
-    private final ImageView[] overlayMarkers = new ImageView[11];
     private int waitingForButton = -1;
 
     @Override
@@ -34,8 +30,8 @@ public class NewControllerMapperActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_new_controller_mapper);
         
-        // Ensure portrait orientation for controller mapping
-        DeviceOrientationManager.setPortraitOrientation(this);
+        // Use landscape orientation since emulator runs in landscape
+        DeviceOrientationManager.setLandscapeOrientation(this);
 
         buttonA = findViewById(R.id.button_a);
         buttonB = findViewById(R.id.button_b);
@@ -49,7 +45,6 @@ public class NewControllerMapperActivity extends Activity {
         buttonL1 = findViewById(R.id.button_l1);
         buttonR1 = findViewById(R.id.button_r1);
         backButton = findViewById(R.id.back_button);
-        highlightContainer = findViewById(R.id.highlight_container);
 
         // Add touch feedback + assignment handler
         addTouchFeedback(buttonA, ControllerMappingManager.BUTTON_A);
@@ -63,9 +58,6 @@ public class NewControllerMapperActivity extends Activity {
         addTouchFeedback(buttonDpadRight, ControllerMappingManager.BUTTON_DPAD_RIGHT);
         addTouchFeedback(buttonL1, ControllerMappingManager.BUTTON_L1);
         addTouchFeedback(buttonR1, ControllerMappingManager.BUTTON_R1);
-
-        setupOverlayMarkers();
-        refreshOverlaySelection(-1);
 
         refreshButtonLabels();
 
@@ -98,7 +90,6 @@ public class NewControllerMapperActivity extends Activity {
             @Override
             public void onClick(View v) {
                 waitingForButton = buttonIndex;
-                refreshOverlaySelection(buttonIndex);
                 Toast.makeText(NewControllerMapperActivity.this,
                         "Press a controller button for 3DO " + ControllerMappingManager.buttonName(buttonIndex),
                         Toast.LENGTH_SHORT).show();
@@ -122,7 +113,6 @@ public class NewControllerMapperActivity extends Activity {
                             + " to " + ControllerMappingManager.keyName(keyCode),
                     Toast.LENGTH_SHORT).show();
             waitingForButton = -1;
-                refreshOverlaySelection(-1);
             refreshButtonLabels();
             return true;
         }
@@ -132,8 +122,8 @@ public class NewControllerMapperActivity extends Activity {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        // Ensure we stay in portrait mode for controller mapping
-        DeviceOrientationManager.setPortraitOrientation(this);
+        // Ensure we stay in landscape mode for controller mapping
+        DeviceOrientationManager.setLandscapeOrientation(this);
     }
 
     private void refreshButtonLabels() {
@@ -157,104 +147,4 @@ public class NewControllerMapperActivity extends Activity {
                 + ControllerMappingManager.keyName(keyCode));
     }
 
-    private FrameLayout.LayoutParams createOverlayParams(int buttonIndex) {
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT);
-
-        switch (buttonIndex) {
-            case 0: // A button
-                params.leftMargin = 200;
-                params.topMargin = 400;
-                params.width = 80;
-                params.height = 80;
-                break;
-            case 1: // B button
-                params.leftMargin = 300;
-                params.topMargin = 400;
-                params.width = 80;
-                params.height = 80;
-                break;
-            case 2: // C button
-                params.leftMargin = 400;
-                params.topMargin = 400;
-                params.width = 80;
-                params.height = 80;
-                break;
-            case 3: // Play/Pause
-                params.leftMargin = 500;
-                params.topMargin = 300;
-                params.width = 80;
-                params.height = 80;
-                break;
-            case 4: // Stop
-                params.leftMargin = 300;
-                params.topMargin = 300;
-                params.width = 100;
-                params.height = 60;
-                break;
-            case 5: // D-pad up
-                params.leftMargin = 100;
-                params.topMargin = 200;
-                params.width = 60;
-                params.height = 60;
-                break;
-            case 6: // D-pad down
-                params.leftMargin = 100;
-                params.topMargin = 400;
-                params.width = 60;
-                params.height = 60;
-                break;
-            case 7: // D-pad left
-                params.leftMargin = 40;
-                params.topMargin = 300;
-                params.width = 60;
-                params.height = 60;
-                break;
-            case 8: // D-pad right
-                params.leftMargin = 160;
-                params.topMargin = 300;
-                params.width = 60;
-                params.height = 60;
-                break;
-            case 9: // L1
-                params.leftMargin = 80;
-                params.topMargin = 120;
-                params.width = 120;
-                params.height = 50;
-                break;
-            case 10: // R1
-                params.leftMargin = 420;
-                params.topMargin = 120;
-                params.width = 120;
-                params.height = 50;
-                break;
-        }
-        return params;
-    }
-
-    private void setupOverlayMarkers() {
-        if (highlightContainer == null) {
-            return;
-        }
-
-        for (int buttonIndex = 0; buttonIndex < overlayMarkers.length; buttonIndex++) {
-            ImageView marker = new ImageView(this);
-            marker.setImageResource(R.drawable.highlight_overlay);
-            marker.setLayoutParams(createOverlayParams(buttonIndex));
-            marker.setAlpha(0.25f);
-            highlightContainer.addView(marker);
-            overlayMarkers[buttonIndex] = marker;
-        }
-    }
-
-    private void refreshOverlaySelection(int selectedButton) {
-        for (int i = 0; i < overlayMarkers.length; i++) {
-            ImageView marker = overlayMarkers[i];
-            if (marker == null) {
-                continue;
-            }
-            marker.setAlpha(i == selectedButton ? 0.75f : 0.25f);
-        }
-    }
 }
