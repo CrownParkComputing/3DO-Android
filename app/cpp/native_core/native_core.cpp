@@ -1109,8 +1109,7 @@ bool emulator_load_cd(const char* game_path) {
 }
 
 int emulator_audio_drain(uint32_t* out_buffer, int max_frames) {
-    return fourdo::core::FourdoCore::instance().drain_audio(
-        reinterpret_cast<u32*>(out_buffer), max_frames);
+    return fourdo::core::FourdoCore::instance().drain_audio(out_buffer, max_frames);
 }
 
 uint8_t* opera_nvram_get_data(size_t* size) {
