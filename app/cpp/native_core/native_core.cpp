@@ -719,7 +719,10 @@ void FourdoCore::shutdown() {
 // -----------------------------------------------------------------------
 void FourdoCore::pause()        { m_paused.store(true,  std::memory_order_release); }
 void FourdoCore::resume()       { m_paused.store(false, std::memory_order_release); }
-void FourdoCore::toggle_pause() { m_paused.fetch_xor(1, std::memory_order_acq_rel); }
+void FourdoCore::toggle_pause() {
+    bool expected = m_paused.load(std::memory_order_acquire);
+    while (!m_paused.compare_exchange_weak(expected, !expected, std::memory_order_acq_rel)) {}
+}
 void FourdoCore::reset()        { m_reset_requested.store(true, std::memory_order_release); }
 
 // -----------------------------------------------------------------------
