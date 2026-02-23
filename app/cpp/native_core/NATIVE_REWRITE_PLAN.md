@@ -6,10 +6,18 @@ Rewrite the libopera 3DO emulator core to modern Android-native C++ with enhance
 ## Module Structure
 
 ### Phase 1: Foundation (Current)
-- [ ] Core types and utilities
-- [ ] Logging system (Android logcat integration)
-- [ ] Memory management with ARM NEON optimizations
-- [ ] Configuration system
+- [x] Core types and utilities (`native_types.h`)
+- [x] Logging system (`native_log.h` – Android logcat integration)
+- [x] Memory management with ARM NEON optimizations (`native_memory.h`)
+- [x] BIOS loader (`native_bios.h`)
+- [x] NVRAM manager (`native_nvram.h`)
+- [x] CD-ROM interface (`native_cdrom.h`)
+- [x] Audio ring-buffer & system (`native_audio.h`)
+- [x] Input system with remapping (`native_input.h`)
+- [x] **FourdoCore coordinator** (`native_core.h` / `native_core.cpp`)
+      - Unifies all subsystems into a single native entry point
+      - libopera C code is used internally as the hardware-emulation backend
+      - Replaces direct opera C function calls scattered across emulator_core.cpp
 
 ### Phase 2: Core Hardware
 - [ ] ARM60 CPU emulator (opera_arm.c)
@@ -51,4 +59,8 @@ Rewrite the libopera 3DO emulator core to modern Android-native C++ with enhance
 
 ## Progress
 - [x] OpenGL ES 3.0 Renderer
-- [ ] Native Core Rewrite (Starting...)
+- [x] Phase 1 Foundation complete (native_core.h / native_core.cpp)
+- [ ] Phase 2: Core Hardware rewrite (ARM60, Memory, BIOS, NVRAM)
+- [ ] Phase 3: Custom Chips (CLIO, MADAM, VDLP, DSP, SPORT)
+- [ ] Phase 4: Peripherals (XBUS, CD-ROM, PBUS, Clock)
+- [ ] Phase 5: Advanced Features (save states, cheats, region, fast boot)

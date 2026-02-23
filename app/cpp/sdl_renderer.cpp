@@ -149,3 +149,46 @@ extern "C" void render_frame(const void* pixels, int width, int height) {
 
     ANativeWindow_unlockAndPost(g_native_window);
 }
+
+// -----------------------------------------------------------------------
+// Renderer control JNI functions
+// (setRendererType / setFiltering / getRendererName / setAspectRatio /
+//  getAspectRatio are declared native in EmulatorActivity.java)
+// -----------------------------------------------------------------------
+
+#include <atomic>
+static std::atomic<int>  g_renderer_type{1};    // 1 = OpenGL ES (default)
+static std::atomic<bool> g_nearest_filtering{false};
+static std::atomic<bool> g_aspect_wide{false};  // false = 4:3, true = 16:9
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_fourdo_android_EmulatorActivity_setRendererType(JNIEnv* /*env*/, jobject /*thiz*/, jint type) {
+    g_renderer_type.store(static_cast<int>(type), std::memory_order_relaxed);
+    LOGD("setRendererType: %d", static_cast<int>(type));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_fourdo_android_EmulatorActivity_setFiltering(JNIEnv* /*env*/, jobject /*thiz*/, jboolean nearest) {
+    g_nearest_filtering.store(nearest == JNI_TRUE, std::memory_order_relaxed);
+    LOGD("setFiltering: nearest=%d", static_cast<int>(nearest));
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_fourdo_android_EmulatorActivity_getRendererName(JNIEnv* env, jobject /*thiz*/) {
+    int type = g_renderer_type.load(std::memory_order_relaxed);
+    const char* name = "Software";
+    if (type == 1) name = "OpenGL ES";
+    else if (type == 2) name = "Vulkan";
+    return env->NewStringUTF(name);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_fourdo_android_EmulatorActivity_setAspectRatio(JNIEnv* /*env*/, jobject /*thiz*/, jboolean wide) {
+    g_aspect_wide.store(wide == JNI_TRUE, std::memory_order_relaxed);
+    LOGD("setAspectRatio: wide=%d", static_cast<int>(wide));
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_fourdo_android_EmulatorActivity_getAspectRatio(JNIEnv* /*env*/, jobject /*thiz*/) {
+    return g_aspect_wide.load(std::memory_order_relaxed) ? JNI_TRUE : JNI_FALSE;
+}
