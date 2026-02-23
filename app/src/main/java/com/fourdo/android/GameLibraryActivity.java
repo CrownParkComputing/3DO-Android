@@ -205,8 +205,12 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
                 break;
         }
         
-        adapter.notifyDataSetChanged();
-        carouselAdapter.notifyDataSetChanged();
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
+        if (carouselAdapter != null) {
+            carouselAdapter.notifyDataSetChanged();
+        }
     }
 
     private void log(String message) {

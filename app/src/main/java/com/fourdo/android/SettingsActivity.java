@@ -29,11 +29,23 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_LAST_GAME_PATH = "last_game_path";
     public static final String KEY_LIBRARY_FOLDER = "library_folder";
     public static final String KEY_VIEW_STYLE = "view_style";
+    public static final String KEY_RENDERER_TYPE = "renderer_type";
+    public static final String KEY_TEXTURE_FILTERING = "texture_filtering";
     
     public static final int VIEW_STYLE_GRID_SMALL = 0;
     public static final int VIEW_STYLE_GRID_MEDIUM = 1;
     public static final int VIEW_STYLE_GRID_LARGE = 2;
     public static final int VIEW_STYLE_CAROUSEL = 3;
+    
+    // Renderer types - must match native code
+    public static final int RENDERER_AUTO = 0;
+    public static final int RENDERER_OPENGL_ES = 1;
+    public static final int RENDERER_VULKAN = 2;
+    public static final int RENDERER_SOFTWARE = 3;
+    
+    // Texture filtering modes
+    public static final int FILTERING_LINEAR = 0;
+    public static final int FILTERING_NEAREST = 1;
     
     private static final int REQUEST_BIOS_PICKER = 1;
     private static final int REQUEST_LIBRARY_PICKER = 2;
@@ -47,6 +59,8 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView biosPathText;
     private TextView libraryPathText;
     private Spinner viewStyleSpinner;
+    private Spinner rendererSpinner;
+    private Spinner filteringSpinner;
 
     public static void start(Context context) {
         Intent intent = new Intent(context, SettingsActivity.class);
@@ -67,10 +81,14 @@ public class SettingsActivity extends AppCompatActivity {
         biosPathText = findViewById(R.id.bios_path_text);
         libraryPathText = findViewById(R.id.library_path_text);
         viewStyleSpinner = findViewById(R.id.view_style_spinner);
+        rendererSpinner = findViewById(R.id.renderer_spinner);
+        filteringSpinner = findViewById(R.id.filtering_spinner);
 
         refreshBiosPathText();
         refreshLibraryPathText();
         setupViewStyleSpinner();
+        setupRendererSpinner();
+        setupFilteringSpinner();
 
         selectBiosButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -190,6 +208,59 @@ public class SettingsActivity extends AppCompatActivity {
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
                 prefs.edit().putInt(KEY_VIEW_STYLE, position).apply();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
+    
+    private void setupRendererSpinner() {
+        String[] renderers = {"Auto", "OpenGL ES", "Vulkan (Coming Soon)", "Software"};
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, renderers);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        rendererSpinner.setAdapter(adapter);
+        
+        // Load saved preference
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        int savedRenderer = prefs.getInt(KEY_RENDERER_TYPE, RENDERER_AUTO);
+        rendererSpinner.setSelection(savedRenderer);
+        
+        rendererSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                prefs.edit().putInt(KEY_RENDERER_TYPE, position).apply();
+                
+                // Show info about renderer choice
+                if (position == RENDERER_VULKAN) {
+                    Toast.makeText(SettingsActivity.this, "Vulkan renderer coming in future update", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
+    
+    private void setupFilteringSpinner() {
+        String[] filters = {"Linear (Smooth)", "Nearest (Sharp)"};
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, filters);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        filteringSpinner.setAdapter(adapter);
+        
+        // Load saved preference
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        int savedFilter = prefs.getInt(KEY_TEXTURE_FILTERING, FILTERING_LINEAR);
+        filteringSpinner.setSelection(savedFilter);
+        
+        filteringSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                prefs.edit().putInt(KEY_TEXTURE_FILTERING, position).apply();
             }
 
             @Override

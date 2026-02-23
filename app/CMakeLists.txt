@@ -5,15 +5,43 @@ project("4DO-Android")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Find required libraries
+find_library(
+    log-lib
+    log
+)
+
+find_library(
+    android-lib
+    android
+)
+
+# Find EGL and OpenGL ES libraries
+find_library(
+    egl-lib
+    EGL
+)
+
+find_library(
+    gles-lib
+    GLESv3
+)
+
 # Add all source files
 add_library(
     native-lib
     SHARED
     cpp/android_main.cpp
     cpp/jni_bridge.cpp
-    cpp/sdl_renderer.cpp
     cpp/input_handler.cpp
     cpp/emulator_core.cpp
+    cpp/unified_renderer.cpp
+    
+    # New GPU renderer files
+    cpp/renderers/renderer_factory.cpp
+    cpp/renderers/gl_renderer.cpp
+    cpp/renderers/software_renderer.cpp
+    cpp/renderers/vulkan_renderer.cpp
     cpp/libopera/opera_3do.c
     cpp/libopera/opera_arm.c
     cpp/libopera/opera_bios.c
@@ -37,17 +65,16 @@ add_library(
     cpp/libopera/opera_xbus_cdrom_plugin.c
     cpp/libopera/prng16.c
     cpp/libopera/prng32.c
-)
-
-# Find required libraries
-find_library(
-    log-lib
-    log
-)
-
-find_library(
-    android-lib
-    android
+    
+    # New native core (modern C++ rewrite in progress)
+    cpp/native_core/native_types.h
+    cpp/native_core/native_log.h
+    cpp/native_core/native_memory.h
+    cpp/native_core/native_nvram.h
+    cpp/native_core/native_bios.h
+    cpp/native_core/native_cdrom.h
+    cpp/native_core/native_audio.h
+    cpp/native_core/native_input.h
 )
 
 # Set native_app_glue path and include
@@ -78,5 +105,7 @@ target_link_libraries(
     native-lib
     ${log-lib}
     ${android-lib}
+    ${egl-lib}
+    ${gles-lib}
     ${NATIVE_APP_GLUE_LIB}
 )

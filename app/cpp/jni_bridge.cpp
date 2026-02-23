@@ -372,3 +372,5 @@ Java_com_fourdo_android_EmulatorActivity_loadNVRAM(JNIEnv* env, jobject thiz, js
     LOGD("NVRAM load %s", success ? "succeeded" : "failed");
     return success ? JNI_TRUE : JNI_FALSE;
 }
+
+// Aspect ratio toggle is in unified_renderer.cpp

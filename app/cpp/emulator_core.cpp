@@ -920,15 +920,6 @@ static void* emulator_thread_func(void* arg) {
 // JNI-callable functions
 extern "C" {
 
-int sdl_init() {
-    LOGD("SDL_Init called");
-    return 0;
-}
-
-void sdl_shutdown() {
-    LOGD("SDL_shutdown called");
-}
-
 int emulator_init(const char* game_path, const char* bios_path) {
     LOGD("emulator_init called with game path: %s, bios path: %s",
          game_path ? game_path : "null",

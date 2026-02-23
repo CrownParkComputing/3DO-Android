@@ -45,9 +45,29 @@ public class EmulatorActivity extends AppCompatActivity {
     private Button loadCdButton;
     private Button backButton;
     private Button controllerMapButton;
-    private Button menuToggleButton;
     private LinearLayout overlayMenu;
     private boolean menuVisible = false;
+    
+    // Quick toolbar buttons
+    private Button cdButton;
+    private Button aspectRatioButton;
+    private Button rendererButton;
+    private Button filteringButton;
+    private android.widget.ImageButton menuToggleButton;
+    private android.widget.TextView statusIndicator;
+    private android.widget.TextView fpsCounter;
+    private LinearLayout quickToolbar;
+    
+    // FPS counter
+    private int frameCount = 0;
+    private long lastFpsTime = 0;
+    private android.os.Handler fpsHandler = new android.os.Handler();
+    private Runnable fpsRunnable;
+    
+    // Settings state
+    private boolean aspectRatio16by9 = false;  // false = 4:3, true = 16:9
+    private int currentRenderer = RENDERER_OPENGL_ES;
+    private boolean nearestFiltering = false;  // false = linear, true = nearest
     private SurfaceView emulatorSurfaceView;
     private String mGamePath = null;
     private AudioTrack audioTrack;
@@ -83,8 +103,29 @@ public class EmulatorActivity extends AppCompatActivity {
         loadCdButton = findViewById(R.id.load_cd_button);
         backButton = findViewById(R.id.back_button);
         controllerMapButton = findViewById(R.id.controller_map_button);
-        menuToggleButton = findViewById(R.id.menu_toggle_button);
         overlayMenu = findViewById(R.id.overlay_menu);
+        
+        // Quick toolbar buttons
+        cdButton = findViewById(R.id.cd_button);
+        aspectRatioButton = findViewById(R.id.aspect_ratio_button);
+        rendererButton = findViewById(R.id.renderer_button);
+        filteringButton = findViewById(R.id.filtering_button);
+        menuToggleButton = findViewById(R.id.menu_toggle_button);
+        statusIndicator = findViewById(R.id.status_indicator);
+        fpsCounter = findViewById(R.id.fps_counter);
+        quickToolbar = findViewById(R.id.quick_toolbar);
+        
+        // Load saved settings
+        loadSettings();
+        
+        // Initialize button labels
+        updateButtonLabels();
+        
+        // Start FPS counter
+        startFpsCounter();
+        
+        // Setup quick toolbar button listeners
+        setupQuickToolbar();
 
         // Menu toggle button
         menuToggleButton.setOnClickListener(new View.OnClickListener() {
@@ -110,20 +151,25 @@ public class EmulatorActivity extends AppCompatActivity {
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
         emulatorSurfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+            private boolean surfaceReady = false;
+
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
-                Surface surface = holder.getSurface();
-                setSurface(surface);
+                // Don't set surface yet - wait for surfaceChanged with proper size
             }
 
             @Override
             public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                initRenderer(width, height);
-                setSurface(holder.getSurface());
+                if (width > 0 && height > 0) {
+                    initRenderer(width, height);
+                    setSurface(holder.getSurface());
+                    surfaceReady = true;
+                }
             }
 
             @Override
             public void surfaceDestroyed(SurfaceHolder holder) {
+                surfaceReady = false;
                 setSurface(null);
             }
         });
@@ -174,13 +220,13 @@ public class EmulatorActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.bios_required, Toast.LENGTH_SHORT).show();
             openBiosBrowser();
         } else if (mGamePath == null || mGamePath.isEmpty()) {
-            String lastGamePath = getSavedLastGamePath();
-            if (isSupportedCdPath(lastGamePath)) {
-                mGamePath = lastGamePath;
-                initializeEmulator(mGamePath);
-            } else {
-                openLibraryGamePickerForStartup();
-            }
+            // Boot into BIOS - no game selected, show menu after boot
+            initializeEmulator(null);
+            // Show the game selection menu after a short delay
+            emulatorSurfaceView.postDelayed(() -> {
+                showOverlayMenu();
+                Toast.makeText(this, "Select a game from the menu", Toast.LENGTH_LONG).show();
+            }, 1000);
         } else {
             // Initialize emulator with the game path
             initializeEmulator(mGamePath);
@@ -219,6 +265,142 @@ public class EmulatorActivity extends AppCompatActivity {
     private void openControllerMap() {
         Intent intent = new Intent(this, NewControllerMapperActivity.class);
         startActivity(intent);
+    }
+    
+    private void setupQuickToolbar() {
+        // CD button - long press to load CD
+        cdButton.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                openLoadCdBrowser();
+                showStatusToast("Load CD...");
+                return true;
+            }
+        });
+        cdButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showStatusToast("Long press to load CD");
+            }
+        });
+        
+        // Aspect ratio toggle
+        aspectRatioButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                aspectRatio16by9 = !aspectRatio16by9;
+                setAspectRatio(aspectRatio16by9);
+                saveSettings();
+                updateButtonLabels();
+                updateStatusIndicator();
+                showStatusToast(aspectRatio16by9 ? "16:9" : "4:3");
+            }
+        });
+        
+        // Renderer toggle (skip Vulkan - not implemented)
+        rendererButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Cycle: OpenGL ES -> Software -> OpenGL ES (skip Vulkan)
+                if (currentRenderer == RENDERER_OPENGL_ES) {
+                    currentRenderer = RENDERER_SOFTWARE;
+                } else {
+                    currentRenderer = RENDERER_OPENGL_ES;
+                }
+                setRendererType(currentRenderer);
+                saveSettings();
+                updateButtonLabels();
+                updateStatusIndicator();
+                String name = currentRenderer == RENDERER_OPENGL_ES ? "OpenGL ES" : "Software";
+                showStatusToast("Renderer: " + name);
+            }
+        });
+        
+        // Filtering toggle
+        filteringButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                nearestFiltering = !nearestFiltering;
+                setFiltering(nearestFiltering);
+                saveSettings();
+                updateButtonLabels();
+                updateStatusIndicator();
+                showStatusToast(nearestFiltering ? "Nearest (Sharp)" : "Linear (Smooth)");
+            }
+        });
+        
+        // Update status indicator
+        updateStatusIndicator();
+    }
+    
+    private void loadSettings() {
+        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        aspectRatio16by9 = prefs.getBoolean("aspect_ratio_16by9", false);
+        currentRenderer = prefs.getInt("renderer_type", RENDERER_OPENGL_ES);
+        nearestFiltering = prefs.getBoolean("nearest_filtering", false);
+    }
+    
+    private void saveSettings() {
+        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        prefs.edit()
+            .putBoolean("aspect_ratio_16by9", aspectRatio16by9)
+            .putInt("renderer_type", currentRenderer)
+            .putBoolean("nearest_filtering", nearestFiltering)
+            .apply();
+    }
+    
+    private void updateStatusIndicator() {
+        String aspect = aspectRatio16by9 ? "16:9" : "4:3";
+        String renderer = currentRenderer == RENDERER_OPENGL_ES ? "OpenGL" :
+                          currentRenderer == RENDERER_VULKAN ? "Vulkan" : "Soft";
+        String filter = nearestFiltering ? "Sharp" : "Smooth";
+        statusIndicator.setText(aspect + " | " + renderer + " | " + filter);
+    }
+    
+    private void showStatusToast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+    
+    private void updateButtonLabels() {
+        // Update aspect ratio button
+        aspectRatioButton.setText(aspectRatio16by9 ? "16:9" : "4:3");
+        
+        // Update renderer button
+        rendererButton.setText(currentRenderer == RENDERER_OPENGL_ES ? "OpenGL" : "Soft");
+        
+        // Update filtering button
+        filteringButton.setText(nearestFiltering ? "Sharp" : "Smooth");
+    }
+    
+    private void startFpsCounter() {
+        fpsRunnable = new Runnable() {
+            @Override
+            public void run() {
+                long now = System.currentTimeMillis();
+                if (lastFpsTime > 0) {
+                    long elapsed = now - lastFpsTime;
+                    if (elapsed > 0) {
+                        int fps = (int)(frameCount * 1000 / elapsed);
+                        fpsCounter.setText("FPS: " + fps);
+                    }
+                }
+                lastFpsTime = now;
+                frameCount = 0;
+                fpsHandler.postDelayed(this, 1000);
+            }
+        };
+        fpsHandler.post(fpsRunnable);
+    }
+    
+    private void stopFpsCounter() {
+        if (fpsRunnable != null) {
+            fpsHandler.removeCallbacks(fpsRunnable);
+        }
+    }
+    
+    // Called from native code to count frames
+    private void countFrame() {
+        frameCount++;
     }
 
     private void toggleOverlayMenu() {
@@ -614,6 +796,7 @@ public class EmulatorActivity extends AppCompatActivity {
     protected void onDestroy() {
         autoSaveNVRAM();
         super.onDestroy();
+        stopFpsCounter();
         stopAudioPlayback();
         shutdownEmulator();
         cleanupRenderer();
@@ -649,4 +832,17 @@ public class EmulatorActivity extends AppCompatActivity {
     private native void setSurface(Surface surface);
     private native boolean saveNVRAM(String path);
     private native boolean loadNVRAM(String path);
+    
+    // New GPU renderer methods
+    private native void setRendererType(int type);
+    private native void setFiltering(boolean nearest);
+    private native String getRendererName();
+    private native void setAspectRatio(boolean wide);
+    private native boolean getAspectRatio();
+    
+    // Renderer type constants
+    public static final int RENDERER_AUTO = 0;
+    public static final int RENDERER_OPENGL_ES = 1;
+    public static final int RENDERER_VULKAN = 2;
+    public static final int RENDERER_SOFTWARE = 3;
 }
