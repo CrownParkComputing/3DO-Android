@@ -331,6 +331,9 @@ extern "C" {
     size_t   emulator_state_size(void);
     bool     emulator_save_state(void* buf, size_t buf_size);
     bool     emulator_load_state(const void* buf, size_t buf_size);
+    void     emulator_set_region(int region);
+    int      emulator_get_region(void);
+    void     emulator_set_cpu_speed(float multiplier);
 }
 
 extern "C" JNIEXPORT jint JNICALL
@@ -360,4 +363,25 @@ Java_com_fourdo_android_EmulatorActivity_loadState(JNIEnv* env, jobject /*thiz*/
     bool ok = emulator_load_state(data, static_cast<size_t>(len));
     env->ReleaseByteArrayElements(buf, data, JNI_ABORT);
     return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+// -----------------------------------------------------------------------
+// Region and CPU speed JNI bindings
+// -----------------------------------------------------------------------
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_fourdo_android_EmulatorActivity_setRegion(JNIEnv* /*env*/, jobject /*thiz*/,
+                                                    jint region) {
+    emulator_set_region(static_cast<int>(region));
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_fourdo_android_EmulatorActivity_getRegion(JNIEnv* /*env*/, jobject /*thiz*/) {
+    return static_cast<jint>(emulator_get_region());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_fourdo_android_EmulatorActivity_setCpuSpeed(JNIEnv* /*env*/, jobject /*thiz*/,
+                                                      jfloat multiplier) {
+    emulator_set_cpu_speed(static_cast<float>(multiplier));
 }

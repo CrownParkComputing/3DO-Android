@@ -176,8 +176,379 @@ void opera_nvram_init(void* buf, const int bufsize) {
 
 } // extern "C" (NVRAM)
 
-namespace fourdo {
-namespace core {
+// -----------------------------------------------------------------------
+// Native PRNG implementations (replaces prng16.c and prng32.c)
+// -----------------------------------------------------------------------
+extern "C" {
+
+static uint32_t g_prng16_state = 0xDEADBEEFu;
+static uint32_t g_prng32_state = 0xDEADBEEFu;
+
+static inline uint32_t hash16(uint32_t input, uint32_t key) {
+    uint32_t h = input * key;
+    return ((h >> 16) ^ h) & 0xFFFF;
+}
+
+void     prng16_seed(uint32_t seed) { g_prng16_state = seed; }
+uint32_t prng16(void) { g_prng16_state += 0xFC15u; return hash16(g_prng16_state, 0x02ABu); }
+
+static inline uint32_t splitmix32(uint32_t* v) {
+    uint32_t z = (*v += 0x9e3779b9u);
+    z = (z ^ (z >> 16)) * 0x85ebca6bu;
+    z = (z ^ (z >> 13)) * 0xc2b2ae35u;
+    return z ^ (z >> 16);
+}
+
+void     prng32_seed(uint32_t seed) { g_prng32_state = seed; }
+uint32_t prng32(void) { return splitmix32(&g_prng32_state); }
+
+} // extern "C" (PRNG)
+
+// -----------------------------------------------------------------------
+// Native diagnostic port (replaces opera_diag_port.c)
+// -----------------------------------------------------------------------
+extern "C" {
+
+static uint16_t g_diag_snd0 = 0, g_diag_snd1 = 0;
+static uint16_t g_diag_rcv0 = 0, g_diag_rcv1 = 0;
+static uint16_t g_diag_get_idx = 16, g_diag_send_idx = 16;
+
+void opera_diag_port_init(const int32_t test_code) {
+    g_diag_get_idx  = 16;
+    g_diag_send_idx = 16;
+    g_diag_snd0 = 0;
+    g_diag_snd1 = 0;
+    int32_t tc = test_code;
+    if (tc >= 0) { tc ^= 0xFF; tc |= 0xA000; }
+    else          { tc = 0; }
+    g_diag_rcv0 = static_cast<uint16_t>(tc);
+    g_diag_rcv1 = static_cast<uint16_t>(tc);
+}
+
+void opera_diag_port_send(const uint32_t val) {
+    if (g_diag_get_idx != 16) {
+        g_diag_get_idx  = 16;
+        g_diag_send_idx = 16;
+        g_diag_snd0 = 0;
+        g_diag_snd1 = 0;
+    }
+    g_diag_snd0 = static_cast<uint16_t>(g_diag_snd0 | ((val & 1u) << (g_diag_send_idx - 1)));
+    g_diag_snd1 = static_cast<uint16_t>(g_diag_snd1 | (((val >> 1u) & 1u) << (g_diag_send_idx - 1)));
+    if (--g_diag_send_idx == 0) g_diag_send_idx = 16;
+}
+
+uint32_t opera_diag_port_get(void) {
+    if (g_diag_send_idx != 16) {
+        g_diag_get_idx  = 16;
+        g_diag_send_idx = 16;
+    }
+    uint32_t val  =  (g_diag_rcv0 >> (g_diag_get_idx - 1)) & 0x1u;
+    val           |= ((g_diag_rcv1 >> (g_diag_get_idx - 1)) & 0x1u) << 1u;
+    if (--g_diag_get_idx == 0) g_diag_get_idx = 16;
+    return val;
+}
+
+} // extern "C" (diag_port)
+
+// -----------------------------------------------------------------------
+// Native clock implementation (replaces opera_clock.c)
+// -----------------------------------------------------------------------
+extern "C" {
+
+#define NATIVE_DEFAULT_CPU_FREQ  12500000UL
+#define NATIVE_SND_FREQ          44100UL
+#define NATIVE_NTSC_FIELD_SIZE   263UL
+#define NATIVE_PAL_FIELD_SIZE    312UL
+#define NATIVE_NTSC_FIELD_RATE   3928227UL   // 16.16 fixed-point
+#define NATIVE_PAL_FIELD_RATE    3276800UL
+#define NATIVE_DEFAULT_TIMER     0x150UL
+
+typedef struct {
+    uint32_t cpu_freq;
+    int32_t  dsp_acc;
+    int32_t  vdl_acc;
+    int32_t  timer_acc;
+    uint32_t timer_delay;
+    uint32_t field_size;
+    uint32_t field_rate;
+    int32_t  cycles_per_snd;
+    int32_t  cycles_per_scanline;
+    int32_t  cycles_per_timer;
+} native_clock_t;
+
+static native_clock_t g_clock = {
+    /* .cpu_freq   = */ NATIVE_DEFAULT_CPU_FREQ,
+    /* .dsp_acc    = */ 0,
+    /* .vdl_acc    = */ 0,
+    /* .timer_acc  = */ 0,
+    /* .timer_delay= */ NATIVE_DEFAULT_TIMER,
+    /* .field_size = */ NATIVE_NTSC_FIELD_SIZE,
+    /* .field_rate = */ NATIVE_NTSC_FIELD_RATE,
+    /* .cycles_per_snd      = */ (int32_t)(((uint64_t)NATIVE_DEFAULT_CPU_FREQ << 16) / NATIVE_SND_FREQ),
+    /* .cycles_per_scanline = */ (int32_t)(((uint64_t)NATIVE_DEFAULT_CPU_FREQ << 32) /
+                                            (NATIVE_NTSC_FIELD_RATE * NATIVE_NTSC_FIELD_SIZE)),
+    /* .cycles_per_timer    = */ (int32_t)(((uint64_t)NATIVE_DEFAULT_CPU_FREQ << 32) /
+                                            ((((uint64_t)21000000ULL) << 16) / NATIVE_DEFAULT_TIMER)),
+};
+
+static void clock_recalculate(void) {
+    g_clock.cycles_per_snd      = (int32_t)(((uint64_t)g_clock.cpu_freq << 16) / NATIVE_SND_FREQ);
+    g_clock.cycles_per_scanline = (int32_t)(((uint64_t)g_clock.cpu_freq << 32) /
+                                             ((uint64_t)g_clock.field_rate * (uint64_t)g_clock.field_size));
+    uint64_t td = g_clock.timer_delay ? g_clock.timer_delay : 1;
+    g_clock.cycles_per_timer    = (int32_t)(((uint64_t)g_clock.cpu_freq << 32) /
+                                             ((((uint64_t)21000000ULL) << 16) / td));
+}
+
+int opera_clock_vdl_queued(void) {
+    if (g_clock.vdl_acc >= g_clock.cycles_per_scanline) {
+        g_clock.vdl_acc -= g_clock.cycles_per_scanline;
+        return 1;
+    }
+    return 0;
+}
+
+int opera_clock_dsp_queued(void) {
+    if (g_clock.dsp_acc >= g_clock.cycles_per_snd) {
+        g_clock.dsp_acc -= g_clock.cycles_per_snd;
+        return 1;
+    }
+    return 0;
+}
+
+int opera_clock_timer_queued(void) {
+    if (g_clock.timer_acc >= g_clock.cycles_per_timer) {
+        g_clock.timer_acc -= g_clock.cycles_per_timer;
+        return 1;
+    }
+    return 0;
+}
+
+void opera_clock_push_cycles(const uint32_t clks) {
+    uint32_t clks1616 = clks << 16;
+    g_clock.dsp_acc   += (int32_t)clks1616;
+    g_clock.vdl_acc   += (int32_t)clks1616;
+    g_clock.timer_acc += (int32_t)clks1616;
+}
+
+void opera_clock_cpu_set_freq(const uint32_t freq) {
+    g_clock.cpu_freq = freq;
+    clock_recalculate();
+}
+
+void opera_clock_cpu_set_freq_mul(const float mul) {
+    opera_clock_cpu_set_freq((uint32_t)(NATIVE_DEFAULT_CPU_FREQ * mul));
+}
+
+uint32_t opera_clock_cpu_get_freq(void)         { return g_clock.cpu_freq; }
+uint32_t opera_clock_cpu_get_default_freq(void) { return NATIVE_DEFAULT_CPU_FREQ; }
+
+uint64_t opera_clock_cpu_cycles_per_field(void) {
+    return ((uint64_t)g_clock.cpu_freq << 32) /
+           ((uint64_t)g_clock.field_rate * (uint64_t)g_clock.field_size);
+}
+
+void opera_clock_region_set_ntsc(void) {
+    g_clock.field_rate = NATIVE_NTSC_FIELD_RATE;
+    g_clock.field_size = NATIVE_NTSC_FIELD_SIZE;
+    clock_recalculate();
+}
+
+void opera_clock_region_set_pal(void) {
+    g_clock.field_rate = NATIVE_PAL_FIELD_RATE;
+    g_clock.field_size = NATIVE_PAL_FIELD_SIZE;
+    clock_recalculate();
+}
+
+void opera_clock_timer_set_delay(const uint32_t td) {
+    g_clock.timer_delay = td ? td : 1;
+    clock_recalculate();
+}
+
+} // extern "C" (clock)
+
+// -----------------------------------------------------------------------
+// Native region implementation (replaces opera_region.c)
+// The region struct mirrors opera_region_i.h (0=NTSC, 1=PAL1, 2=PAL2).
+// -----------------------------------------------------------------------
+#include "libopera/opera_region_i.h"
+
+extern "C" {
+
+opera_region_t g_REGION = {
+    OPERA_REGION_NTSC, 320, 240, 262, 21, 21 + 240, 60
+};
+
+void opera_region_set_NTSC(void) {
+    g_REGION.region         = OPERA_REGION_NTSC;
+    g_REGION.width          = 320;
+    g_REGION.height         = 240;
+    g_REGION.scanlines      = 262;
+    g_REGION.start_scanline = 21;
+    g_REGION.end_scanline   = 21 + 240;
+    g_REGION.field_rate     = 60;
+    opera_clock_region_set_ntsc();
+}
+
+void opera_region_set_PAL1(void) {
+    g_REGION.region         = OPERA_REGION_PAL1;
+    g_REGION.width          = 320;
+    g_REGION.height         = 288;
+    g_REGION.scanlines      = 312;
+    g_REGION.start_scanline = 21;
+    g_REGION.end_scanline   = 21 + 288;
+    g_REGION.field_rate     = 50;
+    opera_clock_region_set_pal();
+}
+
+void opera_region_set_PAL2(void) {
+    g_REGION.region         = OPERA_REGION_PAL2;
+    g_REGION.width          = 384;
+    g_REGION.height         = 288;
+    g_REGION.scanlines      = 312;
+    g_REGION.start_scanline = 22;
+    g_REGION.end_scanline   = 22 + 288;
+    g_REGION.field_rate     = 50;
+    opera_clock_region_set_pal();
+}
+
+opera_region_e opera_region_get(void)      { return g_REGION.region; }
+uint32_t opera_region_min_width(void)      { return 320; }
+uint32_t opera_region_min_height(void)     { return 240; }
+uint32_t opera_region_max_width(void)      { return 384; }
+uint32_t opera_region_max_height(void)     { return 288; }
+
+} // extern "C" (region)
+
+// -----------------------------------------------------------------------
+// Native fixed-point math (replaces opera_fixedpoint_math.c)
+// These are ARM60 SWI 0x5xxxx math functions exposed to libopera.
+// -----------------------------------------------------------------------
+#include "libopera/opera_fixedpoint_math.h"
+
+extern "C" {
+
+static int32_t sqrt_frac16_native(int32_t x) {
+    // Digit-by-digit integer square root for 16.16 fixed-point.
+    // The do-while with count-- iterates 17 times (count: 16 down to 0 inclusive),
+    // matching the original opera_fixedpoint_math.c algorithm exactly.
+    int32_t root = 0, remHi = 0, remLo = x;
+    int count = 16;
+    do {
+        remHi = (remHi << 16) | (uint32_t)(remLo >> 16);
+        remLo <<= 16;
+        int32_t testDiv = (root << 1) + 1;
+        if (remHi >= testDiv) { remHi -= testDiv; root++; }
+    } while (count-- != 0);
+    return root;
+}
+
+void MulVec3Mat33_F16(vec3f16 dest, vec3f16 vec, mat33f16 mat) {
+    vec3f16 tmp;
+    tmp[0] = (int32_t)((((int64_t)vec[0]*(int64_t)mat[0][0])+((int64_t)vec[1]*(int64_t)mat[1][0])+((int64_t)vec[2]*(int64_t)mat[2][0]))>>16);
+    tmp[1] = (int32_t)((((int64_t)vec[0]*(int64_t)mat[0][1])+((int64_t)vec[1]*(int64_t)mat[1][1])+((int64_t)vec[2]*(int64_t)mat[2][1]))>>16);
+    tmp[2] = (int32_t)((((int64_t)vec[0]*(int64_t)mat[0][2])+((int64_t)vec[1]*(int64_t)mat[1][2])+((int64_t)vec[2]*(int64_t)mat[2][2]))>>16);
+    dest[0]=tmp[0]; dest[1]=tmp[1]; dest[2]=tmp[2];
+}
+
+void MulMat33Mat33_F16(mat33f16 dest, mat33f16 s1, mat33f16 s2) {
+    mat33f16 tmp;
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c)
+            tmp[r][c] = (int32_t)((((int64_t)s1[r][0]*(int64_t)s2[0][c])+((int64_t)s1[r][1]*(int64_t)s2[1][c])+((int64_t)s1[r][2]*(int64_t)s2[2][c]))>>16);
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c)
+            dest[r][c] = tmp[r][c];
+}
+
+void MulManyVec3Mat33_F16(vec3f16 *dest, vec3f16 *src, mat33f16 mat, int32_t count) {
+    for (int32_t i = 0; i < count; ++i) MulVec3Mat33_F16(dest[i], src[i], mat);
+}
+
+void MulManyF16(frac16 *dest, frac16 *src1, frac16 *src2, int32_t count) {
+    for (int32_t i = 0; i < count; ++i) dest[i] = (frac16)(((int64_t)src1[i]*(int64_t)src2[i])>>16);
+}
+
+void MulScalerF16(frac16 *dest, frac16 *src, frac16 scaler, int32_t count) {
+    for (int32_t i = 0; i < count; ++i) dest[i] = (frac16)(((int64_t)src[i]*(int64_t)scaler)>>16);
+}
+
+void MulVec4Mat44_F16(vec4f16 dest, vec4f16 vec, mat44f16 mat) {
+    vec4f16 tmp;
+    for (int c = 0; c < 4; ++c) {
+        int64_t s = 0;
+        for (int r = 0; r < 4; ++r) s += (int64_t)vec[r]*(int64_t)mat[r][c];
+        tmp[c] = (frac16)(s >> 16);
+    }
+    dest[0]=tmp[0]; dest[1]=tmp[1]; dest[2]=tmp[2]; dest[3]=tmp[3];
+}
+
+void MulMat44Mat44_F16(mat44f16 dest, mat44f16 s1, mat44f16 s2) {
+    mat44f16 tmp;
+    for (int r = 0; r < 4; ++r)
+        for (int c = 0; c < 4; ++c) {
+            int64_t s = 0;
+            for (int k = 0; k < 4; ++k) s += (int64_t)s1[r][k]*(int64_t)s2[k][c];
+            tmp[r][c] = (frac16)(s >> 16);
+        }
+    for (int r = 0; r < 4; ++r)
+        for (int c = 0; c < 4; ++c)
+            dest[r][c] = tmp[r][c];
+}
+
+void MulManyVec4Mat44_F16(vec4f16 *dest, vec4f16 *src, mat44f16 mat, int32_t count) {
+    for (int32_t i = 0; i < count; ++i) MulVec4Mat44_F16(dest[i], src[i], mat);
+}
+
+void MulObjectVec4Mat44_F16(void *objectlist[], ObjOffset1 *offsetstruct, int32_t count) {
+    (void)objectlist; (void)offsetstruct; (void)count;
+}
+
+void MulObjectMat44_F16(void *objectlist[], ObjOffset2 *offsetstruct, mat44f16 mat, int32_t count) {
+    (void)objectlist; (void)offsetstruct; (void)mat; (void)count;
+}
+
+frac16 Dot3_F16(vec3f16 v1, vec3f16 v2) {
+    return (frac16)((((int64_t)v1[0]*(int64_t)v2[0])+((int64_t)v1[1]*(int64_t)v2[1])+((int64_t)v1[2]*(int64_t)v2[2]))>>16);
+}
+
+frac16 Dot4_F16(vec4f16 v1, vec4f16 v2) {
+    return (frac16)((((int64_t)v1[0]*(int64_t)v2[0])+((int64_t)v1[1]*(int64_t)v2[1])+((int64_t)v1[2]*(int64_t)v2[2])+((int64_t)v1[3]*(int64_t)v2[3]))>>16);
+}
+
+void Cross3_F16(vec3f16 dest, vec3f16 v1, vec3f16 v2) {
+    vec3f16 tmp;
+    tmp[0] = (frac16)((((int64_t)v1[1]*(int64_t)v2[2])-((int64_t)v1[2]*(int64_t)v2[1]))>>16);
+    tmp[1] = (frac16)((((int64_t)v1[2]*(int64_t)v2[0])-((int64_t)v1[0]*(int64_t)v2[2]))>>16);
+    tmp[2] = (frac16)((((int64_t)v1[0]*(int64_t)v2[1])-((int64_t)v1[1]*(int64_t)v2[0]))>>16);
+    dest[0]=tmp[0]; dest[1]=tmp[1]; dest[2]=tmp[2];
+}
+
+frac16 AbsVec3_F16(vec3f16 vec) {
+    frac16 rv = (frac16)((((int64_t)vec[0]*(int64_t)vec[0])+((int64_t)vec[1]*(int64_t)vec[1])+((int64_t)vec[2]*(int64_t)vec[2]))>>16);
+    return sqrt_frac16_native(rv);
+}
+
+frac16 AbsVec4_F16(vec4f16 vec) {
+    frac16 rv = (frac16)((((int64_t)vec[0]*(int64_t)vec[0])+((int64_t)vec[1]*(int64_t)vec[1])+((int64_t)vec[2]*(int64_t)vec[2])+((int64_t)vec[3]*(int64_t)vec[3]))>>16);
+    return sqrt_frac16_native(rv);
+}
+
+void MulVec3Mat33DivZ_F16(vec3f16 dest, vec3f16 vec, mat33f16 mat, frac16 n) {
+    MulVec3Mat33_F16(dest, vec, mat);
+    if (dest[2] != 0) {
+        int64_t mul = (((int64_t)n << 16) / (int64_t)dest[2]);
+        dest[0] = (frac16)((((int64_t)dest[0] * mul) >> 16));
+        dest[1] = (frac16)((((int64_t)dest[1] * mul) >> 16));
+    }
+}
+
+void MulManyVec3Mat33DivZ_F16(vec3f16 *dest, vec3f16 *src, mat33f16 *mat, frac16 n, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) MulVec3Mat33DivZ_F16(dest[i], src[i], *mat, n);
+}
+
+} // extern "C" (fixedpoint_math)
+
 
 // -----------------------------------------------------------------------
 // Button indices – kept in sync with input_handler.cpp / EmulatorActivity
@@ -250,6 +621,13 @@ int FourdoCore::init(const std::string& game_path, const std::string& bios_path)
 
     m_game_path = game_path;
     m_bios_path = bios_path;
+
+    // Apply region setting before libopera core init
+    switch (m_region) {
+        case 1:  opera_region_set_PAL1(); LOGD("Region: PAL1"); break;
+        case 2:  opera_region_set_PAL2(); LOGD("Region: PAL2"); break;
+        default: opera_region_set_NTSC(); LOGD("Region: NTSC"); break;
+    }
 
     // Allocate video buffer
     m_video_buffer = static_cast<u8*>(malloc(FB_BYTES));
@@ -415,6 +793,35 @@ bool FourdoCore::nvram_set(const u8* data, size_t size) {
 const char* FourdoCore::status() const {
     if (!m_initialized.load(std::memory_order_acquire)) return "Not Running";
     return m_paused.load(std::memory_order_acquire) ? "Paused" : "Running";
+}
+
+// -----------------------------------------------------------------------
+// region / CPU speed
+// -----------------------------------------------------------------------
+void FourdoCore::set_region(int region) {
+    m_region = region;
+    // Apply immediately if already running
+    if (m_initialized.load(std::memory_order_acquire)) {
+        switch (region) {
+            case 1:  opera_region_set_PAL1(); break;
+            case 2:  opera_region_set_PAL2(); break;
+            default: opera_region_set_NTSC(); break;
+        }
+        LOGD("Region changed to %d", region);
+    }
+}
+
+int FourdoCore::get_region() const {
+    return m_region;
+}
+
+void FourdoCore::set_cpu_speed(float multiplier) {
+    if (multiplier <= 0.0f) {
+        LOGW("set_cpu_speed: invalid multiplier %.2f, clamping to 1.0", (double)multiplier);
+        multiplier = 1.0f;
+    }
+    opera_clock_cpu_set_freq_mul(multiplier);
+    LOGD("CPU speed multiplier set to %.2f", (double)multiplier);
 }
 
 // -----------------------------------------------------------------------
@@ -719,6 +1126,18 @@ bool emulator_save_state(void* buf, size_t buf_size) {
 
 bool emulator_load_state(const void* buf, size_t buf_size) {
     return fourdo::core::FourdoCore::instance().load_state(buf, buf_size);
+}
+
+void emulator_set_region(int region) {
+    fourdo::core::FourdoCore::instance().set_region(region);
+}
+
+int emulator_get_region() {
+    return fourdo::core::FourdoCore::instance().get_region();
+}
+
+void emulator_set_cpu_speed(float multiplier) {
+    fourdo::core::FourdoCore::instance().set_cpu_speed(multiplier);
 }
 
 } // extern "C"

@@ -25,6 +25,13 @@ Rewrite the libopera 3DO emulator core to modern Android-native C++ with enhance
 - [x] libopera internal logging wired to Android logcat
 - [x] Save-state support added to `FourdoCore` (`state_size`, `save_state`, `load_state`)
 - [x] NativeActivity dead code removed (`android_main.cpp` and `android_native_app_glue` stripped from build)
+- [x] PRNG (`prng16.c`, `prng32.c` removed – implemented natively in `native_core.cpp`)
+- [x] Diagnostic port (`opera_diag_port.c` removed – implemented natively in `native_core.cpp`)
+- [x] Clock/timer (`opera_clock.c` removed – implemented natively in `native_core.cpp`)
+- [x] Region (`opera_region.c` removed – implemented natively in `native_core.cpp`)
+- [x] Fixed-point math (`opera_fixedpoint_math.c` removed – implemented natively in `native_core.cpp`)
+- [x] Region setting exposed via JNI + `SettingsActivity` UI
+- [x] CPU speed control exposed via JNI (`setCpuSpeed`)
 - [ ] ARM60 CPU emulator (opera_arm.c)
 - [ ] Memory controller (opera_mem.c)
 
@@ -39,12 +46,10 @@ Rewrite the libopera 3DO emulator core to modern Android-native C++ with enhance
 - [ ] XBUS (Expansion) - opera_xbus.c
 - [ ] CD-ROM interface - opera_cdrom.c
 - [ ] Controller input (PBUS) - opera_pbus.c
-- [ ] Clock/Timer - opera_clock.c
 
 ### Phase 5: Advanced Features
 - [ ] Save states with compression
 - [ ] Cheat system
-- [ ] Region detection
 - [ ] Fast boot options
 
 ## Enhancements Over Original
@@ -63,35 +68,43 @@ Rewrite the libopera 3DO emulator core to modern Android-native C++ with enhance
 ## Progress
 - [x] OpenGL ES 3.0 Renderer
 - [x] Phase 1 Foundation complete (native_core.h / native_core.cpp)
-- [x] Phase 2 partial: BIOS loader, NVRAM, logging, save states, build cleanup
+- [x] Phase 2 partial: BIOS, NVRAM, logging, save states, build cleanup
+- [x] Phase 2 continued: PRNG, diag port, clock, region, fixed-point math migrated
 - [ ] Phase 2 remaining: ARM60 CPU, Memory controller
 - [ ] Phase 3: Custom Chips (CLIO, MADAM, VDLP, DSP, SPORT)
-- [ ] Phase 4: Peripherals (XBUS, CD-ROM, PBUS, Clock)
-- [ ] Phase 5: Advanced Features (save states, cheats, region, fast boot)
+- [ ] Phase 4: Peripherals (XBUS, CD-ROM, PBUS)
+- [ ] Phase 5: Advanced Features (save state compression, cheats, fast boot)
 
 ## libopera Files Remaining in Build
 The following libopera C files are still compiled as the hardware-emulation
-backend. Each one will be removed once a native C++ replacement is complete:
+backend. Each will be removed once a native C++ replacement is complete:
 
 | File                      | Purpose                 | Replacement status       |
 |---------------------------|-------------------------|--------------------------|
 | opera_3do.c               | Core init / state       | Pending (Phase 2/3)      |
 | opera_arm.c               | ARM60 CPU               | Pending (Phase 2)        |
-| opera_bitop.c             | Bit operations          | Pending                  |
+| opera_bitop.c             | Bit operations          | Used by opera_madam.c    |
 | opera_cdrom.c             | CD-ROM callbacks        | Pending (Phase 4)        |
 | opera_clio.c              | CLIO I/O chip           | Pending (Phase 3)        |
-| opera_clock.c             | Clock/timer             | Pending (Phase 4)        |
-| opera_diag_port.c         | Diagnostic port         | Low priority             |
 | opera_dsp.c               | Audio DSP               | Pending (Phase 3)        |
-| opera_fixedpoint_math.c   | Fixed-point math        | Pending                  |
 | opera_log.c               | Internal logging        | Wired to logcat ✓        |
 | opera_madam.c             | MADAM video processor   | Pending (Phase 3)        |
 | opera_mem.c               | Memory controller       | Pending (Phase 2)        |
 | opera_pbus.c              | Controller input bus    | Pending (Phase 4)        |
-| opera_region.c            | Region (NTSC/PAL)       | Pending                  |
 | opera_sport.c             | SPORT serial port       | Pending (Phase 3)        |
 | opera_state.c             | Save-state chunks       | Wrapped by FourdoCore ✓  |
 | opera_vdlp.c              | Display list processor  | Pending (Phase 3)        |
 | opera_xbus.c              | XBUS expansion          | Pending (Phase 4)        |
 | opera_xbus_cdrom_plugin.c | CD-ROM XBUS plugin      | Pending (Phase 4)        |
-| prng16.c / prng32.c       | Pseudo-random numbers   | Pending                  |
+
+## libopera Files Removed from Build (native replacements in native_core.cpp)
+| File                      | Replacement              |
+|---------------------------|--------------------------|
+| opera_bios.c              | native_bios.h            |
+| opera_nvram.c             | native_core.cpp NVRAM    |
+| opera_clock.c             | native_core.cpp clock    |
+| opera_region.c            | native_core.cpp region   |
+| opera_diag_port.c         | native_core.cpp diag     |
+| opera_fixedpoint_math.c   | native_core.cpp fp math  |
+| prng16.c                  | native_core.cpp PRNG     |
+| prng32.c                  | native_core.cpp PRNG     |

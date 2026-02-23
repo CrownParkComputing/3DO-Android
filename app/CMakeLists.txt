@@ -49,23 +49,22 @@ add_library(
     cpp/libopera/opera_bitop.c
     cpp/libopera/opera_cdrom.c
     cpp/libopera/opera_clio.c
-    cpp/libopera/opera_clock.c
-    cpp/libopera/opera_diag_port.c
+    # opera_clock.c removed – replaced by native implementation in native_core.cpp
+    # opera_diag_port.c removed – replaced by native implementation in native_core.cpp
     cpp/libopera/opera_dsp.c
-    cpp/libopera/opera_fixedpoint_math.c
+    # opera_fixedpoint_math.c removed – replaced by native implementation in native_core.cpp
     cpp/libopera/opera_log.c
     cpp/libopera/opera_madam.c
     cpp/libopera/opera_mem.c
     # opera_nvram.c removed – NVRAM format functions implemented in native_core.cpp
     cpp/libopera/opera_pbus.c
-    cpp/libopera/opera_region.c
+    # opera_region.c removed – replaced by native implementation in native_core.cpp
     cpp/libopera/opera_sport.c
     cpp/libopera/opera_state.c
     cpp/libopera/opera_vdlp.c
     cpp/libopera/opera_xbus.c
     cpp/libopera/opera_xbus_cdrom_plugin.c
-    cpp/libopera/prng16.c
-    cpp/libopera/prng32.c
+    # prng16.c / prng32.c removed – replaced by native implementation in native_core.cpp
     
     # Native core (modern C++ coordinator – replaces emulator_core.cpp)
     cpp/native_core/native_core.cpp

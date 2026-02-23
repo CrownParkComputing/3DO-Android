@@ -639,6 +639,11 @@ public class EmulatorActivity extends AppCompatActivity {
     private void initializeEmulator(String gamePath) {
         String biosPath = getSavedBiosPath();
 
+        // Apply region setting before init
+        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        int region = prefs.getInt(SettingsActivity.KEY_REGION, REGION_NTSC);
+        setRegion(region);
+
         // Initialize emulator
         if (!initEmulator(gamePath, biosPath)) {
             Toast.makeText(this, "Failed to initialize emulator", Toast.LENGTH_LONG).show();
@@ -837,7 +842,12 @@ public class EmulatorActivity extends AppCompatActivity {
     private native int getStateSize();
     private native boolean saveState(byte[] buf);
     private native boolean loadState(byte[] buf);
-    
+
+    // Region and CPU speed
+    private native void setRegion(int region);
+    private native int getRegion();
+    private native void setCpuSpeed(float multiplier);
+
     // New GPU renderer methods
     private native void setRendererType(int type);
     private native void setFiltering(boolean nearest);
@@ -850,4 +860,9 @@ public class EmulatorActivity extends AppCompatActivity {
     public static final int RENDERER_OPENGL_ES = 1;
     public static final int RENDERER_VULKAN = 2;
     public static final int RENDERER_SOFTWARE = 3;
+
+    // Region constants (0=NTSC, 1=PAL1, 2=PAL2) — must match native values
+    public static final int REGION_NTSC = 0;
+    public static final int REGION_PAL1 = 1;
+    public static final int REGION_PAL2 = 2;
 }

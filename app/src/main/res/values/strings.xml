@@ -39,6 +39,11 @@
     <string name="setup_next">Next</string>
     <string name="setup_back">Back</string>
     <string name="setup_launch">Start Playing!</string>
+
+    <!-- Region settings -->
+    <string name="region_ntsc">NTSC (60 Hz)</string>
+    <string name="region_pal1">PAL (288p, 50 Hz)</string>
+    <string name="region_pal2">PAL Wide (384×288, 50 Hz)</string>
     
     <!-- Welcome Step -->
     <string name="setup_welcome_title">Welcome to 4DO Android!</string>
