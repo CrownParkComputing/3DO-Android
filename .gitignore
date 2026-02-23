@@ -20,3 +20,4 @@ local.properties
 # OS files
 .DS_Store
 Thumbs.db
+app/app

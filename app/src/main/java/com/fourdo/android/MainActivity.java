@@ -7,7 +7,6 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.Toast;
 
 /**
  * Main launcher activity for the 4DO 3DO emulator.
@@ -36,11 +35,6 @@ public class MainActivity extends Activity {
         startEmulatorButton = findViewById(R.id.start_button);
         settingsButton = findViewById(R.id.settings_button);
 
-        // Initialize SDL when the app starts
-        if (initSDL() != 0) {
-            Toast.makeText(this, "Failed to initialize SDL", Toast.LENGTH_LONG).show();
-        }
-
         startEmulatorButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -59,15 +53,4 @@ public class MainActivity extends Activity {
             }
         });
     }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        // Clean up SDL when the app exits
-        shutdownSDL();
-    }
-
-    // Native methods
-    private native int initSDL();
-    private native void shutdownSDL();
 }

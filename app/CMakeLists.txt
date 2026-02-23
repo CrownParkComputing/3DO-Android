@@ -31,42 +31,42 @@ find_library(
 add_library(
     native-lib
     SHARED
-    cpp/android_main.cpp
     cpp/jni_bridge.cpp
     cpp/input_handler.cpp
-    cpp/emulator_core.cpp
     cpp/unified_renderer.cpp
     
-    # New GPU renderer files
+    # GPU renderer files
     cpp/renderers/renderer_factory.cpp
     cpp/renderers/gl_renderer.cpp
     cpp/renderers/software_renderer.cpp
     cpp/renderers/vulkan_renderer.cpp
+
+    # libopera hardware-emulation backend
+    # (individual files will be removed as native C++ replacements are completed)
     cpp/libopera/opera_3do.c
     cpp/libopera/opera_arm.c
-    cpp/libopera/opera_bios.c
+    # opera_bios.c removed – BIOS loading handled by native_bios.h
     cpp/libopera/opera_bitop.c
     cpp/libopera/opera_cdrom.c
     cpp/libopera/opera_clio.c
-    cpp/libopera/opera_clock.c
-    cpp/libopera/opera_diag_port.c
+    # opera_clock.c removed – replaced by native implementation in native_core.cpp
+    # opera_diag_port.c removed – replaced by native implementation in native_core.cpp
     cpp/libopera/opera_dsp.c
-    cpp/libopera/opera_fixedpoint_math.c
+    # opera_fixedpoint_math.c removed – replaced by native implementation in native_core.cpp
     cpp/libopera/opera_log.c
     cpp/libopera/opera_madam.c
     cpp/libopera/opera_mem.c
-    cpp/libopera/opera_nvram.c
+    # opera_nvram.c removed – NVRAM format functions implemented in native_core.cpp
     cpp/libopera/opera_pbus.c
-    cpp/libopera/opera_region.c
+    # opera_region.c removed – replaced by native implementation in native_core.cpp
     cpp/libopera/opera_sport.c
     cpp/libopera/opera_state.c
     cpp/libopera/opera_vdlp.c
     cpp/libopera/opera_xbus.c
     cpp/libopera/opera_xbus_cdrom_plugin.c
-    cpp/libopera/prng16.c
-    cpp/libopera/prng32.c
+    # prng16.c / prng32.c removed – replaced by native implementation in native_core.cpp
     
-    # New native core (modern C++ rewrite in progress)
+    # Native core (modern C++ coordinator – replaces emulator_core.cpp)
     cpp/native_core/native_core.cpp
     cpp/native_core/native_types.h
     cpp/native_core/native_log.h
@@ -78,28 +78,10 @@ add_library(
     cpp/native_core/native_input.h
 )
 
-# Set native_app_glue path and include
-set(NATIVE_APP_GLUE_DIR "${CMAKE_ANDROID_NDK}/sources/android/native_app_glue")
-if(NOT EXISTS "${NATIVE_APP_GLUE_DIR}" AND DEFINED ANDROID_NDK)
-    set(NATIVE_APP_GLUE_DIR "${ANDROID_NDK}/sources/android/native_app_glue")
-endif()
-
-# Include directories - include native_app_glue source
+# Include directories
 target_include_directories(native-lib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/cpp
-    ${NATIVE_APP_GLUE_DIR}
 )
-
-# Add native_app_glue as a prebuilt library
-if(EXISTS "${NATIVE_APP_GLUE_DIR}/android_native_app_glue.c")
-    add_library(native_app_glue STATIC
-        ${NATIVE_APP_GLUE_DIR}/android_native_app_glue.c
-    )
-    set_target_properties(native_app_glue PROPERTIES
-        POSITION_INDEPENDENT_CODE ON
-    )
-    set(NATIVE_APP_GLUE_LIB native_app_glue)
-endif()
 
 # Link all libraries
 target_link_libraries(
@@ -108,5 +90,4 @@ target_link_libraries(
     ${android-lib}
     ${egl-lib}
     ${gles-lib}
-    ${NATIVE_APP_GLUE_LIB}
 )

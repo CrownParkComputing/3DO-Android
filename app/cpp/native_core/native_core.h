@@ -105,6 +105,42 @@ public:
     /** Access the input system (thread-safe by design of InputSystem). */
     InputSystem& input() { return m_input; }
 
+    /**
+     * Return the number of bytes required for a full save-state buffer.
+     * Returns 0 when the emulator is not running.
+     */
+    size_t state_size() const;
+
+    /**
+     * Write the current emulator state into buf (must be >= state_size() bytes).
+     * @return true on success.
+     */
+    bool save_state(void* buf, size_t buf_size);
+
+    /**
+     * Restore the emulator state from buf.
+     * @return true on success.
+     */
+    bool load_state(const void* buf, size_t buf_size);
+
+    /**
+     * Set the console region. Must be called before init() to take effect.
+     * @param region  0 = NTSC (default), 1 = PAL1, 2 = PAL2
+     */
+    void set_region(int region);
+
+    /**
+     * Get the current console region.
+     * @return 0 = NTSC, 1 = PAL1, 2 = PAL2
+     */
+    int get_region() const;
+
+    /**
+     * Set CPU speed multiplier (1.0f = default 12.5 MHz).
+     * Changes take effect immediately (live adjustment).
+     */
+    void set_cpu_speed(float multiplier);
+
     // Static libopera CD-ROM callback trampolines
     static uint32_t opera_cdrom_get_size_cb();
     static void     opera_cdrom_set_sector_cb(uint32_t sector);
@@ -135,6 +171,7 @@ private:
 
     std::string m_game_path;
     std::string m_bios_path;
+    int         m_region{0};  // 0=NTSC (default), 1=PAL1, 2=PAL2
 
     pthread_t m_thread{};
     int       m_init_state{0}; // 0=pending, 1=ok, -1=failed

@@ -31,7 +31,8 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_VIEW_STYLE = "view_style";
     public static final String KEY_RENDERER_TYPE = "renderer_type";
     public static final String KEY_TEXTURE_FILTERING = "texture_filtering";
-    
+    public static final String KEY_REGION = "region";
+
     public static final int VIEW_STYLE_GRID_SMALL = 0;
     public static final int VIEW_STYLE_GRID_MEDIUM = 1;
     public static final int VIEW_STYLE_GRID_LARGE = 2;
@@ -46,6 +47,11 @@ public class SettingsActivity extends AppCompatActivity {
     // Texture filtering modes
     public static final int FILTERING_LINEAR = 0;
     public static final int FILTERING_NEAREST = 1;
+
+    // Region constants – must match native EmulatorActivity values
+    public static final int REGION_NTSC = 0;
+    public static final int REGION_PAL1 = 1;
+    public static final int REGION_PAL2 = 2;
     
     private static final int REQUEST_BIOS_PICKER = 1;
     private static final int REQUEST_LIBRARY_PICKER = 2;
@@ -61,6 +67,7 @@ public class SettingsActivity extends AppCompatActivity {
     private Spinner viewStyleSpinner;
     private Spinner rendererSpinner;
     private Spinner filteringSpinner;
+    private Spinner regionSpinner;
 
     public static void start(Context context) {
         Intent intent = new Intent(context, SettingsActivity.class);
@@ -83,12 +90,14 @@ public class SettingsActivity extends AppCompatActivity {
         viewStyleSpinner = findViewById(R.id.view_style_spinner);
         rendererSpinner = findViewById(R.id.renderer_spinner);
         filteringSpinner = findViewById(R.id.filtering_spinner);
+        regionSpinner = findViewById(R.id.region_spinner);
 
         refreshBiosPathText();
         refreshLibraryPathText();
         setupViewStyleSpinner();
         setupRendererSpinner();
         setupFilteringSpinner();
+        setupRegionSpinner();
 
         selectBiosButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -261,6 +270,34 @@ public class SettingsActivity extends AppCompatActivity {
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
                 prefs.edit().putInt(KEY_TEXTURE_FILTERING, position).apply();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
+
+    private void setupRegionSpinner() {
+        if (regionSpinner == null) return;
+        String[] regions = {
+            getString(R.string.region_ntsc),
+            getString(R.string.region_pal1),
+            getString(R.string.region_pal2)
+        };
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, regions);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        regionSpinner.setAdapter(adapter);
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        int savedRegion = prefs.getInt(KEY_REGION, REGION_NTSC);
+        regionSpinner.setSelection(savedRegion);
+
+        regionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                prefs.edit().putInt(KEY_REGION, position).apply();
             }
 
             @Override

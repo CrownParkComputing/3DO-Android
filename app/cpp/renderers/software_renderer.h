@@ -6,7 +6,6 @@
 /**
  * Software renderer - CPU-based rendering using ANativeWindow.
  * This is the fallback renderer when GPU acceleration is not available.
- * Based on the original sdl_renderer.cpp implementation.
  */
 class SoftwareRenderer : public IRenderer {
 public:
