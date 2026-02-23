@@ -423,10 +423,13 @@ uint32_t opera_region_max_height(void)     { return 288; }
 // -----------------------------------------------------------------------
 // Native fixed-point math (replaces opera_fixedpoint_math.c)
 // These are ARM60 SWI 0x5xxxx math functions exposed to libopera.
+// The header is included inside extern "C" so all declarations and
+// definitions share C linkage, avoiding "different language linkage" errors.
 // -----------------------------------------------------------------------
-#include "libopera/opera_fixedpoint_math.h"
 
 extern "C" {
+
+#include "libopera/opera_fixedpoint_math.h"
 
 static int32_t sqrt_frac16_native(int32_t x) {
     // Digit-by-digit integer square root for 16.16 fixed-point.
@@ -549,6 +552,8 @@ void MulManyVec3Mat33DivZ_F16(vec3f16 *dest, vec3f16 *src, mat33f16 *mat, frac16
 
 } // extern "C" (fixedpoint_math)
 
+namespace fourdo {
+namespace core {
 
 // -----------------------------------------------------------------------
 // Button indices – kept in sync with input_handler.cpp / EmulatorActivity
@@ -714,7 +719,10 @@ void FourdoCore::shutdown() {
 // -----------------------------------------------------------------------
 void FourdoCore::pause()        { m_paused.store(true,  std::memory_order_release); }
 void FourdoCore::resume()       { m_paused.store(false, std::memory_order_release); }
-void FourdoCore::toggle_pause() { m_paused.fetch_xor(1, std::memory_order_acq_rel); }
+void FourdoCore::toggle_pause() {
+    bool expected = m_paused.load(std::memory_order_acquire);
+    while (!m_paused.compare_exchange_weak(expected, !expected, std::memory_order_acq_rel)) {}
+}
 void FourdoCore::reset()        { m_reset_requested.store(true, std::memory_order_release); }
 
 // -----------------------------------------------------------------------
@@ -1104,8 +1112,7 @@ bool emulator_load_cd(const char* game_path) {
 }
 
 int emulator_audio_drain(uint32_t* out_buffer, int max_frames) {
-    return fourdo::core::FourdoCore::instance().drain_audio(
-        reinterpret_cast<u32*>(out_buffer), max_frames);
+    return fourdo::core::FourdoCore::instance().drain_audio(out_buffer, max_frames);
 }
 
 uint8_t* opera_nvram_get_data(size_t* size) {

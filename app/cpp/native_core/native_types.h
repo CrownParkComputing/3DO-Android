@@ -116,41 +116,6 @@ struct AudioBuffer {
     AudioBuffer() : samples(nullptr), frame_count(0), sample_rate(44100), channels(2) {}
 };
 
-// Controller state
-struct ControllerState {
-    bool up;
-    bool down;
-    bool left;
-    bool right;
-    bool a;
-    bool b;
-    bool c;
-    bool play_pause;
-    bool stop;
-    bool l1;
-    bool r1;
-    
-    ControllerState() : up(false), down(false), left(false), right(false),
-                        a(false), b(false), c(false), play_pause(false),
-                        stop(false), l1(false), r1(false) {}
-    
-    u32 to_pbus() const {
-        u32 pbus = 0;
-        if (up) pbus |= (1 << 0);
-        if (down) pbus |= (1 << 1);
-        if (left) pbus |= (1 << 2);
-        if (right) pbus |= (1 << 3);
-        if (a) pbus |= (1 << 4);
-        if (b) pbus |= (1 << 5);
-        if (c) pbus |= (1 << 6);
-        if (play_pause) pbus |= (1 << 7);
-        if (stop) pbus |= (1 << 8);
-        if (l1) pbus |= (1 << 9);
-        if (r1) pbus |= (1 << 10);
-        return pbus;
-    }
-};
-
 // CD-ROM sector
 struct CdSector {
     static constexpr u32 SIZE = 2048;
