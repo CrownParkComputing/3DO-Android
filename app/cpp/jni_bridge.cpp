@@ -321,3 +321,43 @@ Java_com_fourdo_android_EmulatorActivity_loadNVRAM(JNIEnv* env, jobject thiz, js
 }
 
 // Aspect ratio toggle is in unified_renderer.cpp
+
+// -----------------------------------------------------------------------
+// Save state JNI bindings
+// -----------------------------------------------------------------------
+
+// Forward declarations from native_core.cpp
+extern "C" {
+    size_t   emulator_state_size(void);
+    bool     emulator_save_state(void* buf, size_t buf_size);
+    bool     emulator_load_state(const void* buf, size_t buf_size);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_fourdo_android_EmulatorActivity_getStateSize(JNIEnv* /*env*/, jobject /*thiz*/) {
+    return static_cast<jint>(emulator_state_size());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_fourdo_android_EmulatorActivity_saveState(JNIEnv* env, jobject /*thiz*/,
+                                                    jbyteArray buf) {
+    if (buf == nullptr) return JNI_FALSE;
+    jsize len = env->GetArrayLength(buf);
+    jbyte* data = env->GetByteArrayElements(buf, nullptr);
+    if (data == nullptr) return JNI_FALSE;
+    bool ok = emulator_save_state(data, static_cast<size_t>(len));
+    env->ReleaseByteArrayElements(buf, data, JNI_COMMIT); // commit written data back to Java
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_fourdo_android_EmulatorActivity_loadState(JNIEnv* env, jobject /*thiz*/,
+                                                    jbyteArray buf) {
+    if (buf == nullptr) return JNI_FALSE;
+    jsize len = env->GetArrayLength(buf);
+    jbyte* data = env->GetByteArrayElements(buf, nullptr);
+    if (data == nullptr) return JNI_FALSE;
+    bool ok = emulator_load_state(data, static_cast<size_t>(len));
+    env->ReleaseByteArrayElements(buf, data, JNI_ABORT);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}

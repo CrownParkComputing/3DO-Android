@@ -832,6 +832,11 @@ public class EmulatorActivity extends AppCompatActivity {
     private native void setSurface(Surface surface);
     private native boolean saveNVRAM(String path);
     private native boolean loadNVRAM(String path);
+
+    // Save state methods
+    private native int getStateSize();
+    private native boolean saveState(byte[] buf);
+    private native boolean loadState(byte[] buf);
     
     // New GPU renderer methods
     private native void setRendererType(int type);

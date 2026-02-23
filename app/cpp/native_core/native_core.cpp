@@ -13,6 +13,7 @@
 
 #include <cstring>
 #include <cstdlib>
+#include <cstdarg>
 #include <unistd.h>
 #include <time.h>
 
@@ -29,9 +30,6 @@ extern "C" {
     extern uint8_t* ROM1;
     extern uint8_t* NVRAM;
 
-    // NVRAM
-    bool opera_nvram_initialized(void* buf, const int bufsize);
-    void opera_nvram_init(void* buf, const int bufsize);
 #ifndef NVRAM_SIZE
 #define NVRAM_SIZE (1024 * 32)
 #endif
@@ -67,6 +65,15 @@ extern "C" {
     int  opera_3do_init(opera_ext_interface_t callback);
     void opera_3do_destroy(void);
     void opera_3do_process_frame(void);
+
+    // 3DO state (save/load)
+    uint32_t opera_3do_state_size(void);
+    uint32_t opera_3do_state_save(void* buf, uint32_t size);
+    uint32_t opera_3do_state_load(void const* buf, uint32_t size);
+
+    // libopera logging hook
+    typedef void (*opera_log_printf_t)(int level, const char* fmt, ...);
+    void opera_log_set_func(void* func);
 }
 
 // Input state from input_handler.cpp
@@ -75,6 +82,99 @@ extern "C" void android_input_reset_state();
 
 // Renderer (unified_renderer.cpp)
 extern "C" void render_frame(const void* pixels, int width, int height);
+
+// -----------------------------------------------------------------------
+// libopera logging bridge – redirect opera_log_printf to Android logcat
+// -----------------------------------------------------------------------
+#define LOG_TAG_OPERA "libopera"
+
+static void opera_log_to_logcat(int level, const char* fmt, ...) {
+    android_LogPriority priority;
+    switch (level) {
+        case 0:  priority = ANDROID_LOG_DEBUG;   break; // OPERA_LOG_DEBUG
+        case 1:  priority = ANDROID_LOG_INFO;    break; // OPERA_LOG_INFO
+        case 2:  priority = ANDROID_LOG_WARN;    break; // OPERA_LOG_WARN
+        default: priority = ANDROID_LOG_ERROR;   break; // OPERA_LOG_ERROR
+    }
+    va_list args;
+    va_start(args, fmt);
+    __android_log_vprint(priority, LOG_TAG_OPERA, fmt, args);
+    va_end(args);
+}
+
+// -----------------------------------------------------------------------
+// Native NVRAM format functions
+//
+// These implement the same 3DO linked-memory filesystem format as
+// opera_nvram.c, allowing that libopera C file to be removed from the
+// build.  Structures from discdata.h / linkedmemblock.h are used directly.
+// -----------------------------------------------------------------------
+#include "libopera/discdata.h"
+#include "libopera/linkedmemblock.h"
+#include "libopera/endianness.h"
+
+extern "C" {
+
+bool opera_nvram_initialized(void* buf, const int bufsize) {
+    (void)bufsize;
+    const DiscLabel* dl = static_cast<const DiscLabel*>(buf);
+    if (dl->dl_RecordType != DISC_LABEL_RECORD_TYPE)
+        return false;
+    if (dl->dl_VolumeStructureVersion != VOLUME_STRUCTURE_LINKED_MEM)
+        return false;
+    for (int i = 0; i < VOLUME_SYNC_BYTE_LEN; ++i) {
+        if (dl->dl_VolumeSyncBytes[i] != VOLUME_SYNC_BYTE)
+            return false;
+    }
+    return true;
+}
+
+void opera_nvram_init(void* buf, const int bufsize) {
+    DiscLabel*      disc_label   = static_cast<DiscLabel*>(buf);
+    LinkedMemBlock* anchor_block = reinterpret_cast<LinkedMemBlock*>(&disc_label[1]);
+    LinkedMemBlock* free_block   = &anchor_block[1];
+
+    memset(buf, 0, bufsize);
+
+    disc_label->dl_RecordType = DISC_LABEL_RECORD_TYPE;
+    memset(disc_label->dl_VolumeSyncBytes, VOLUME_SYNC_BYTE, VOLUME_SYNC_BYTE_LEN);
+    disc_label->dl_VolumeStructureVersion = VOLUME_STRUCTURE_LINKED_MEM;
+    disc_label->dl_VolumeFlags = 0;
+    strncpy(reinterpret_cast<char*>(disc_label->dl_VolumeCommentary),
+            "opera formatted", VOLUME_COM_LEN);
+    strncpy(reinterpret_cast<char*>(disc_label->dl_VolumeIdentifier),
+            "nvram", VOLUME_ID_LEN);
+    disc_label->dl_VolumeUniqueIdentifier   = swap32_if_le(NVRAM_VOLUME_UNIQUE_ID); // from discdata.h
+    disc_label->dl_VolumeBlockSize          = swap32_if_le(1); // NVRAM_BLOCKSIZE (1 byte/block)
+    disc_label->dl_VolumeBlockCount         = swap32_if_le(static_cast<uint32_t>(bufsize));
+    disc_label->dl_RootUniqueIdentifier     = swap32_if_le(NVRAM_ROOT_UNIQUE_ID); // from discdata.h
+    disc_label->dl_RootDirectoryBlockCount  = 0;
+    disc_label->dl_RootDirectoryBlockSize   = swap32_if_le(1); // NVRAM_BLOCKSIZE
+    disc_label->dl_RootDirectoryLastAvatarIndex = 0;
+    disc_label->dl_RootDirectoryAvatarList[0]   =
+        swap32_if_le(static_cast<uint32_t>(sizeof(DiscLabel)));
+
+    anchor_block->fingerprint      = swap32_if_le(FINGERPRINT_ANCHORBLOCK);
+    anchor_block->flinkoffset      = swap32_if_le(
+        static_cast<uint32_t>(sizeof(DiscLabel) + sizeof(LinkedMemBlock)));
+    anchor_block->blinkoffset      = anchor_block->flinkoffset;
+    anchor_block->blockcount       = swap32_if_le(
+        static_cast<uint32_t>(sizeof(LinkedMemBlock)));
+    anchor_block->headerblockcount = anchor_block->blockcount;
+
+    free_block->fingerprint      = swap32_if_le(FINGERPRINT_FREEBLOCK);
+    free_block->flinkoffset      = swap32_if_le(
+        static_cast<uint32_t>(sizeof(DiscLabel)));
+    free_block->blinkoffset      = free_block->flinkoffset;
+    free_block->blockcount       = swap32_if_le(
+        static_cast<uint32_t>(bufsize) -
+        static_cast<uint32_t>(sizeof(DiscLabel)) -
+        static_cast<uint32_t>(sizeof(LinkedMemBlock)));
+    free_block->headerblockcount = swap32_if_le(
+        static_cast<uint32_t>(sizeof(LinkedMemBlock)));
+}
+
+} // extern "C" (NVRAM)
 
 namespace fourdo {
 namespace core {
@@ -144,6 +244,9 @@ int FourdoCore::init(const std::string& game_path, const std::string& bios_path)
         LOGD("Already initialised");
         return 0;
     }
+
+    // Redirect libopera's internal log output to Android logcat
+    opera_log_set_func(reinterpret_cast<void*>(opera_log_to_logcat));
 
     m_game_path = game_path;
     m_bios_path = bios_path;
@@ -312,6 +415,48 @@ bool FourdoCore::nvram_set(const u8* data, size_t size) {
 const char* FourdoCore::status() const {
     if (!m_initialized.load(std::memory_order_acquire)) return "Not Running";
     return m_paused.load(std::memory_order_acquire) ? "Paused" : "Running";
+}
+
+// -----------------------------------------------------------------------
+// save state
+// -----------------------------------------------------------------------
+size_t FourdoCore::state_size() const {
+    if (!m_initialized.load(std::memory_order_acquire)) return 0;
+    return static_cast<size_t>(opera_3do_state_size());
+}
+
+bool FourdoCore::save_state(void* buf, size_t buf_size) {
+    if (!m_initialized.load(std::memory_order_acquire) || !buf) return false;
+    uint32_t needed = opera_3do_state_size();
+    if (buf_size < needed) {
+        LOGE("save_state: buffer too small (%zu < %u)", buf_size, needed);
+        return false;
+    }
+    bool was_paused = m_paused.load(std::memory_order_acquire);
+    m_paused.store(true, std::memory_order_release);
+    // Spin-wait until the emulator thread acknowledges the pause (max 200 ms).
+    // The loop body matches the 5 ms sleep used in the emulator main loop when paused.
+    for (int i = 0; i < 40 && m_initialized.load(std::memory_order_acquire); ++i) {
+        usleep(5000);
+    }
+    uint32_t written = opera_3do_state_save(buf, static_cast<uint32_t>(buf_size));
+    m_paused.store(was_paused, std::memory_order_release);
+    LOGD("save_state: wrote %u bytes", written);
+    return written > 0;
+}
+
+bool FourdoCore::load_state(const void* buf, size_t buf_size) {
+    if (!m_initialized.load(std::memory_order_acquire) || !buf) return false;
+    bool was_paused = m_paused.load(std::memory_order_acquire);
+    m_paused.store(true, std::memory_order_release);
+    // Spin-wait until the emulator thread acknowledges the pause (max 200 ms).
+    for (int i = 0; i < 40 && m_initialized.load(std::memory_order_acquire); ++i) {
+        usleep(5000);
+    }
+    uint32_t read = opera_3do_state_load(buf, static_cast<uint32_t>(buf_size));
+    m_paused.store(was_paused, std::memory_order_release);
+    LOGD("load_state: loaded %u bytes", read);
+    return read > 0;
 }
 
 // -----------------------------------------------------------------------
@@ -562,6 +707,18 @@ uint8_t* opera_nvram_get_data(size_t* size) {
 
 bool opera_nvram_set_data(const uint8_t* data, size_t size) {
     return fourdo::core::FourdoCore::instance().nvram_set(data, size);
+}
+
+size_t emulator_state_size() {
+    return fourdo::core::FourdoCore::instance().state_size();
+}
+
+bool emulator_save_state(void* buf, size_t buf_size) {
+    return fourdo::core::FourdoCore::instance().save_state(buf, buf_size);
+}
+
+bool emulator_load_state(const void* buf, size_t buf_size) {
+    return fourdo::core::FourdoCore::instance().load_state(buf, buf_size);
 }
 
 } // extern "C"

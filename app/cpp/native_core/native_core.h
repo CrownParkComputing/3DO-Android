@@ -105,6 +105,24 @@ public:
     /** Access the input system (thread-safe by design of InputSystem). */
     InputSystem& input() { return m_input; }
 
+    /**
+     * Return the number of bytes required for a full save-state buffer.
+     * Returns 0 when the emulator is not running.
+     */
+    size_t state_size() const;
+
+    /**
+     * Write the current emulator state into buf (must be >= state_size() bytes).
+     * @return true on success.
+     */
+    bool save_state(void* buf, size_t buf_size);
+
+    /**
+     * Restore the emulator state from buf.
+     * @return true on success.
+     */
+    bool load_state(const void* buf, size_t buf_size);
+
     // Static libopera CD-ROM callback trampolines
     static uint32_t opera_cdrom_get_size_cb();
     static void     opera_cdrom_set_sector_cb(uint32_t sector);
