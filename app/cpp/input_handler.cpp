@@ -1,6 +1,5 @@
 #include <jni.h>
 #include <android/log.h>
-#include "libopera/opera_arm.h"
 
 #define LOG_TAG "4DO-Android-Input"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)

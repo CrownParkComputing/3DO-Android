@@ -67,6 +67,7 @@ add_library(
     cpp/libopera/prng32.c
     
     # New native core (modern C++ rewrite in progress)
+    cpp/native_core/native_core.cpp
     cpp/native_core/native_types.h
     cpp/native_core/native_log.h
     cpp/native_core/native_memory.h
