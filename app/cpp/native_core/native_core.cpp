@@ -552,6 +552,8 @@ void MulManyVec3Mat33DivZ_F16(vec3f16 *dest, vec3f16 *src, mat33f16 *mat, frac16
 
 } // extern "C" (fixedpoint_math)
 
+namespace fourdo {
+namespace core {
 
 // -----------------------------------------------------------------------
 // Button indices – kept in sync with input_handler.cpp / EmulatorActivity
