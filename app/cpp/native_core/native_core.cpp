@@ -73,7 +73,7 @@ extern "C" {
 extern "C" bool android_input_get_state(int button);
 extern "C" void android_input_reset_state();
 
-// Renderer (sdl_renderer.cpp / unified_renderer.cpp)
+// Renderer (unified_renderer.cpp)
 extern "C" void render_frame(const void* pixels, int width, int height);
 
 namespace fourdo {
@@ -508,18 +508,60 @@ void FourdoCore::do_reset() {
 } // namespace fourdo
 
 // -----------------------------------------------------------------------
-// C-linkage shim used by jni_bridge.cpp and emulator_core.cpp
-// These replace the former "SDL" stubs that had no implementation.
+// C-linkage emulator API
+//
+// These functions expose FourdoCore to jni_bridge.cpp using the same
+// signatures that emulator_core.cpp previously provided, allowing
+// emulator_core.cpp to be removed from the build.
 // -----------------------------------------------------------------------
 extern "C" {
 
-int sdl_init() {
-    // No SDL used – native rendering via ANativeWindow.
-    return 0;
+int emulator_init(const char* game_path, const char* bios_path) {
+    return fourdo::core::FourdoCore::instance().init(
+        game_path ? game_path : "",
+        bios_path ? bios_path : "");
 }
 
-void sdl_shutdown() {
-    // No-op.
+void emulator_shutdown() {
+    fourdo::core::FourdoCore::instance().shutdown();
+}
+
+void emulator_pause() {
+    fourdo::core::FourdoCore::instance().pause();
+}
+
+void emulator_resume() {
+    fourdo::core::FourdoCore::instance().resume();
+}
+
+void emulator_toggle_pause() {
+    fourdo::core::FourdoCore::instance().toggle_pause();
+}
+
+void emulator_reset() {
+    fourdo::core::FourdoCore::instance().reset();
+}
+
+const char* emulator_get_status() {
+    return fourdo::core::FourdoCore::instance().status();
+}
+
+bool emulator_load_cd(const char* game_path) {
+    return fourdo::core::FourdoCore::instance().load_cd(
+        game_path ? game_path : "");
+}
+
+int emulator_audio_drain(uint32_t* out_buffer, int max_frames) {
+    return fourdo::core::FourdoCore::instance().drain_audio(
+        reinterpret_cast<u32*>(out_buffer), max_frames);
+}
+
+uint8_t* opera_nvram_get_data(size_t* size) {
+    return fourdo::core::FourdoCore::instance().nvram_data(size);
+}
+
+bool opera_nvram_set_data(const uint8_t* data, size_t size) {
+    return fourdo::core::FourdoCore::instance().nvram_set(data, size);
 }
 
 } // extern "C"

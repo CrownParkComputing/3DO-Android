@@ -12,8 +12,6 @@
 
 // Forward declarations
 extern "C" {
-    int sdl_init();
-    void sdl_shutdown();
     int emulator_init(const char* game_path, const char* bios_path);
     bool emulator_load_cd(const char* game_path);
     int emulator_audio_drain(uint32_t* out_buffer, int max_frames);
@@ -27,64 +25,13 @@ extern "C" {
 
 // Global state
 static std::mutex g_emulator_mutex;
-static bool g_sdl_initialized = false;
 static bool g_emulator_running = false;
-
-extern "C" JNIEXPORT jint JNICALL
-Java_com_fourdo_android_MainActivity_initSDL(JNIEnv* env, jobject thiz) {
-    LOGD("Initializing SDL...");
-    std::lock_guard<std::mutex> lock(g_emulator_mutex);
-    
-    if (g_sdl_initialized) {
-        LOGD("SDL already initialized");
-        return 0;
-    }
-    
-    int result = sdl_init();
-    if (result == 0) {
-        g_sdl_initialized = true;
-        LOGD("SDL initialized successfully");
-    } else {
-        LOGE("SDL initialization failed: %d", result);
-    }
-    
-    return result;
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_MainActivity_shutdownSDL(JNIEnv* env, jobject thiz) {
-    LOGD("Shutting down SDL...");
-    std::lock_guard<std::mutex> lock(g_emulator_mutex);
-    
-    if (g_emulator_running) {
-        emulator_shutdown();
-        g_emulator_running = false;
-    }
-    
-    if (g_sdl_initialized) {
-        sdl_shutdown();
-        g_sdl_initialized = false;
-    }
-    
-    LOGD("SDL shutdown complete");
-}
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_fourdo_android_EmulatorActivity_initEmulator(JNIEnv* env, jobject thiz, jstring gamePath, jstring biosPath) {
     LOGD("Initializing emulator...");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
-    
-    if (!g_sdl_initialized) {
-        LOGD("SDL not initialized for EmulatorActivity flow, initializing now...");
-        int sdl_result = sdl_init();
-        if (sdl_result != 0) {
-            LOGE("SDL auto-initialization failed: %d", sdl_result);
-            return JNI_FALSE;
-        }
-        g_sdl_initialized = true;
-        LOGD("SDL auto-initialized successfully");
-    }
-    
+
     if (g_emulator_running) {
         LOGD("Emulator already running");
         return JNI_TRUE;

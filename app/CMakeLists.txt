@@ -34,7 +34,6 @@ add_library(
     cpp/android_main.cpp
     cpp/jni_bridge.cpp
     cpp/input_handler.cpp
-    cpp/emulator_core.cpp
     cpp/unified_renderer.cpp
     
     # New GPU renderer files
