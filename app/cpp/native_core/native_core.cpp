@@ -423,10 +423,13 @@ uint32_t opera_region_max_height(void)     { return 288; }
 // -----------------------------------------------------------------------
 // Native fixed-point math (replaces opera_fixedpoint_math.c)
 // These are ARM60 SWI 0x5xxxx math functions exposed to libopera.
+// The header is included inside extern "C" so all declarations and
+// definitions share C linkage, avoiding "different language linkage" errors.
 // -----------------------------------------------------------------------
-#include "libopera/opera_fixedpoint_math.h"
 
 extern "C" {
+
+#include "libopera/opera_fixedpoint_math.h"
 
 static int32_t sqrt_frac16_native(int32_t x) {
     // Digit-by-digit integer square root for 16.16 fixed-point.
