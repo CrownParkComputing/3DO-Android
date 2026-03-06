@@ -56,6 +56,16 @@
             android:textSize="16sp" />
 
         <Button
+            android:id="@+id/render_options_button"
+            android:layout_width="200dp"
+            android:layout_height="48dp"
+            android:layout_marginBottom="8dp"
+            android:text="@string/render_options"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#6666CC"
+            android:textSize="16sp" />
+
+        <Button
             android:id="@+id/controller_map_button"
             android:layout_width="200dp"
             android:layout_height="48dp"
@@ -76,7 +86,7 @@
 
     </LinearLayout>
 
-    <!-- Top Left: FPS Counter -->
+    <!-- Top Left: FPS Counter - compact icon style -->
     <TextView
         android:id="@+id/fps_counter"
         android:layout_width="wrap_content"
@@ -84,105 +94,44 @@
         android:layout_gravity="top|start"
         android:layout_marginTop="8dp"
         android:layout_marginStart="8dp"
-        android:text="FPS: --"
+        android:text="FPS 0"
         android:textColor="#00FF00"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:fontFamily="monospace"
+        android:textSize="18sp"
         android:background="#88000000"
-        android:padding="4dp"
-        android:elevation="4dp" />
+        android:padding="6dp"
+        android:elevation="4dp"
+        android:visibility="visible" />
 
-    <!-- Top Right: Quick settings toolbar with labels -->
-    <LinearLayout
-        android:id="@+id/quick_toolbar"
+    <!-- Debug toggle button for showing all selected rendering options -->
+    <Button
+        android:id="@+id/debug_toggle_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_marginTop="8dp"
         android:layout_marginEnd="8dp"
-        android:orientation="vertical"
-        android:background="#88000000"
+        android:text="Debug: OFF"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#66000000"
         android:padding="8dp"
         android:elevation="4dp"
-        android:visibility="visible">
+        android:visibility="visible" />
 
-        <!-- CD Button with label -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="4dp"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="💿"
-                android:textSize="20sp"
-                android:layout_marginEnd="4dp" />
-
-            <Button
-                android:id="@+id/cd_button"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:text="Load CD"
-                android:textSize="11sp"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#4488FF"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp" />
-        </LinearLayout>
-
-        <!-- Aspect Ratio Button -->
-        <Button
-            android:id="@+id/aspect_ratio_button"
-            android:layout_width="match_parent"
-            android:layout_height="32dp"
-            android:layout_marginBottom="4dp"
-            android:text="4:3"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#44DD44" />
-
-        <!-- Renderer Button -->
-        <Button
-            android:id="@+id/renderer_button"
-            android:layout_width="match_parent"
-            android:layout_height="32dp"
-            android:layout_marginBottom="4dp"
-            android:text="OpenGL"
-            android:textSize="12sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#AA44FF" />
-
-        <!-- Filtering Button -->
-        <Button
-            android:id="@+id/filtering_button"
-            android:layout_width="match_parent"
-            android:layout_height="32dp"
-            android:text="Smooth"
-            android:textSize="12sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#FFAA44" />
-
-    </LinearLayout>
+    <!-- Native to 8K option in graphics options menu -->
+    <!-- This will be handled in the render options dialog, no need for a separate button here -->
 
     <!-- Bottom Left: Menu hamburger button -->
-    <ImageButton
+    <Button
         android:id="@+id/menu_toggle_button"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:layout_gravity="bottom|start"
         android:layout_marginBottom="16dp"
         android:layout_marginStart="16dp"
-        android:src="@android:drawable/ic_menu_more"
-        android:contentDescription="Menu"
-        android:background="#66000000"
-        android:scaleType="centerInside"
-        android:padding="12dp"
-        app:tint="#FFFFFF"
+        android:text="☰"
+        android:textSize="28sp"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#66000000"
         android:elevation="4dp" />
 
     <!-- Status indicator for current settings -->
@@ -195,9 +144,9 @@
         android:layout_marginEnd="16dp"
         android:text="4:3 | OpenGL | Linear"
         android:textColor="#FFFFFF"
-        android:textSize="11sp"
+        android:textSize="14sp"
         android:background="#66000000"
-        android:padding="4dp"
+        android:padding="6dp"
         android:visibility="visible" />
 
 </FrameLayout>

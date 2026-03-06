@@ -226,32 +226,62 @@ public class SettingsActivity extends AppCompatActivity {
     }
     
     private void setupRendererSpinner() {
-        String[] renderers = {"Auto", "OpenGL ES", "Vulkan (Coming Soon)", "Software"};
+        String[] renderers = {"Automatic", "OpenGL ES", "Vulkan", "Software"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, renderers);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         rendererSpinner.setAdapter(adapter);
         
         // Load saved preference
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        int savedRenderer = prefs.getInt(KEY_RENDERER_TYPE, RENDERER_AUTO);
-        rendererSpinner.setSelection(savedRenderer);
+        int savedRenderer = normalizeRendererType(prefs.getInt(KEY_RENDERER_TYPE, RENDERER_AUTO));
+        int selection = 0;
+        if (savedRenderer == RENDERER_OPENGL_ES) {
+            selection = 1;
+        } else if (savedRenderer == RENDERER_VULKAN) {
+            selection = 2;
+        } else if (savedRenderer == RENDERER_SOFTWARE) {
+            selection = 3;
+        }
+        rendererSpinner.setSelection(selection);
+        prefs.edit().putInt(KEY_RENDERER_TYPE, savedRenderer).apply();
         
         rendererSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                prefs.edit().putInt(KEY_RENDERER_TYPE, position).apply();
-                
-                // Show info about renderer choice
-                if (position == RENDERER_VULKAN) {
-                    Toast.makeText(SettingsActivity.this, "Vulkan renderer coming in future update", Toast.LENGTH_SHORT).show();
+                int rendererType;
+                if (position == 1) {
+                    rendererType = RENDERER_OPENGL_ES;
+                } else if (position == 2) {
+                    rendererType = RENDERER_VULKAN;
+                } else if (position == 3) {
+                    rendererType = RENDERER_SOFTWARE;
+                } else {
+                    rendererType = RENDERER_AUTO;
                 }
+                prefs.edit().putInt(KEY_RENDERER_TYPE, rendererType).apply();
             }
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
+    }
+
+    private int normalizeRendererType(int rendererType) {
+        if (rendererType == RENDERER_AUTO) {
+            return RENDERER_AUTO;
+        }
+        if (rendererType == RENDERER_OPENGL_ES) {
+            return RENDERER_OPENGL_ES;
+        }
+        if (rendererType == RENDERER_VULKAN) {
+            return RENDERER_VULKAN;
+        }
+        if (rendererType == RENDERER_SOFTWARE) {
+            return RENDERER_SOFTWARE;
+        }
+        return RENDERER_AUTO;
     }
     
     private void setupFilteringSpinner() {

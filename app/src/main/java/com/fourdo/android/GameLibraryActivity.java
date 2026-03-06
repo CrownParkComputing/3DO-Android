@@ -38,6 +38,7 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
     private static final int MAX_CONCURRENT_IGDB_REQUESTS = 3;
 
     public static final String EXTRA_LIBRARY_PATH = "library_path";
+    public static final String EXTRA_PICK_MODE = "pick_mode";
 
     private GridView gameGridView;
     private ViewPager2 carouselView;
@@ -52,6 +53,7 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
     private CarouselAdapter carouselAdapter;
     private IgdbService igdbService;
     private String libraryPath;
+    private boolean pickMode = false;
     
     // View mode
     private int viewStyle = SettingsActivity.VIEW_STYLE_GRID_MEDIUM;
@@ -102,6 +104,7 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
 
         // Get library path
         libraryPath = getIntent() != null ? getIntent().getStringExtra(EXTRA_LIBRARY_PATH) : null;
+        pickMode = getIntent() != null && getIntent().getBooleanExtra(EXTRA_PICK_MODE, false);
         if (libraryPath == null || libraryPath.isEmpty()) {
             libraryPath = prefs.getString(SettingsActivity.KEY_LIBRARY_FOLDER, "");
         }
@@ -487,6 +490,14 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
                 if (!biosFile.exists()) {
                     log("ERROR: BIOS file does not exist: " + biosPath);
                     Toast.makeText(this, "BIOS file not found", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
+                if (pickMode) {
+                    Intent resultIntent = new Intent();
+                    resultIntent.setData(android.net.Uri.fromFile(gameFile));
+                    setResult(RESULT_OK, resultIntent);
+                    finish();
                     return;
                 }
                 

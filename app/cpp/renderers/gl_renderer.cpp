@@ -2,21 +2,28 @@
 #include <android/log.h>
 #include <cstring>
 #include <cmath>
+#include <algorithm>
 
 #define LOG_TAG "GLRenderer"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
-// Vertex shader - simple pass-through with texture coordinates
+// Vertex shader - pass-through with optional runtime flip via uniforms
 static const char* VERTEX_SHADER = R"(
     #version 300 es
     in vec4 aPosition;
     in vec2 aTexCoord;
     out vec2 vTexCoord;
+    uniform int uFlipX;
+    uniform int uFlipY;
     void main() {
         gl_Position = aPosition;
-        vTexCoord = aTexCoord;
+        float u = aTexCoord.x;
+        float v = aTexCoord.y;
+        if (uFlipX != 0) u = 1.0 - u;
+        if (uFlipY != 0) v = 1.0 - v;
+        vTexCoord = vec2(u, v);
     }
 )";
 
@@ -26,9 +33,59 @@ static const char* FRAGMENT_SHADER = R"(
     precision mediump float;
     in vec2 vTexCoord;
     uniform sampler2D uTexture;
+    uniform vec2 uTexelSize;
+    uniform float uSharpenStrength;
+    uniform int uCrtEnabled;
+    uniform float uCrtStrength;
+    uniform int uAaMode;
     out vec4 fragColor;
+
+    vec4 sampleFxaa(vec2 uv, float amount) {
+        vec2 offset = uTexelSize * amount;
+        vec4 c = texture(uTexture, uv);
+        vec4 n = texture(uTexture, uv + vec2(0.0, -offset.y));
+        vec4 s = texture(uTexture, uv + vec2(0.0, offset.y));
+        vec4 e = texture(uTexture, uv + vec2(offset.x, 0.0));
+        vec4 w = texture(uTexture, uv + vec2(-offset.x, 0.0));
+        vec4 ne = texture(uTexture, uv + vec2(offset.x, -offset.y));
+        vec4 nw = texture(uTexture, uv + vec2(-offset.x, -offset.y));
+        vec4 se = texture(uTexture, uv + vec2(offset.x, offset.y));
+        vec4 sw = texture(uTexture, uv + vec2(-offset.x, offset.y));
+        vec4 avg = (n + s + e + w + ne + nw + se + sw) / 8.0;
+        float edge = length((n.rgb + s.rgb + e.rgb + w.rgb) - (4.0 * c.rgb));
+        float edgeFactor = clamp(edge * 2.5, 0.0, 1.0);
+        return mix(c, avg, edgeFactor * 0.6);
+    }
+
     void main() {
-        fragColor = texture(uTexture, vTexCoord);
+        vec4 center = texture(uTexture, vTexCoord);
+        vec4 baseColor = center;
+
+        if (uAaMode > 0) {
+            float amount = (uAaMode == 1) ? 0.75 : 1.25;
+            baseColor = sampleFxaa(vTexCoord, amount);
+            center = baseColor;
+        }
+
+        if (uSharpenStrength > 0.0001) {
+            vec4 north = texture(uTexture, vTexCoord + vec2(0.0, -uTexelSize.y));
+            vec4 south = texture(uTexture, vTexCoord + vec2(0.0,  uTexelSize.y));
+            vec4 west  = texture(uTexture, vTexCoord + vec2(-uTexelSize.x, 0.0));
+            vec4 east  = texture(uTexture, vTexCoord + vec2( uTexelSize.x, 0.0));
+            vec4 laplace = (center * 4.0) - (north + south + west + east);
+            baseColor = clamp(center + (uSharpenStrength * laplace), 0.0, 1.0);
+        }
+
+        if (uCrtEnabled != 0) {
+            float scan = 0.88 + 0.12 * sin(vTexCoord.y / max(uTexelSize.y, 0.000001) * 3.14159265);
+            float mask = 0.92 + 0.08 * sin(vTexCoord.x / max(uTexelSize.x, 0.000001) * 1.57079632);
+            vec2 dist = abs(vTexCoord - vec2(0.5));
+            float vignette = clamp(1.0 - dot(dist, dist) * 1.2, 0.0, 1.0);
+            float crtFactor = mix(1.0, scan * mask * vignette, clamp(uCrtStrength, 0.0, 1.0));
+            fragColor = vec4(baseColor.rgb * crtFactor, baseColor.a);
+        } else {
+            fragColor = baseColor;
+        }
     }
 )";
 
@@ -96,6 +153,12 @@ bool GLRenderer::initialize(ANativeWindow* window, int width, int height) {
     updateViewport();
     
     m_initialized = true;
+    const char* glRenderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+    if (glRenderer != nullptr) {
+        m_rendererName = std::string("OpenGL ES (") + glRenderer + ")";
+    } else {
+        m_rendererName = "OpenGL ES";
+    }
     LOGI("OpenGL ES renderer initialized successfully");
     LOGI("  GL Version: %s", glGetString(GL_VERSION));
     LOGI("  GL Renderer: %s", glGetString(GL_RENDERER));
@@ -137,6 +200,14 @@ void GLRenderer::cleanup() {
         glDeleteTextures(1, &m_texture);
         m_texture = 0;
     }
+    if (m_upscaleTexture) {
+        glDeleteTextures(1, &m_upscaleTexture);
+        m_upscaleTexture = 0;
+    }
+    if (m_upscaleFbo) {
+        glDeleteFramebuffers(1, &m_upscaleFbo);
+        m_upscaleFbo = 0;
+    }
     if (m_program) {
         glDeleteProgram(m_program);
         m_program = 0;
@@ -161,6 +232,9 @@ void GLRenderer::cleanup() {
     }
     
     m_initialized = false;
+    m_upscaleWidth = 0;
+    m_upscaleHeight = 0;
+    m_rendererName = "OpenGL ES";
     LOGD("OpenGL ES renderer cleanup complete");
 }
 
@@ -187,6 +261,9 @@ void GLRenderer::renderFrame(const void* pixels, int width, int height) {
     if (width != m_frameWidth || height != m_frameHeight) {
         m_frameWidth = width;
         m_frameHeight = height;
+        glBindTexture(GL_TEXTURE_2D, m_texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_frameWidth, m_frameHeight, 0,
+                     GL_RGB, GL_UNSIGNED_SHORT_5_6_5, nullptr);
         m_viewportDirty = true;
     }
     
@@ -211,13 +288,128 @@ void GLRenderer::renderFrame(const void* pixels, int width, int height) {
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
                     GL_RGB, GL_UNSIGNED_SHORT_5_6_5, pixels);
     checkGLError("glTexSubImage2D");
-    
-    // Clear the framebuffer
-    glClear(GL_COLOR_BUFFER_BIT);
-    
-    // Draw the quad
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
-    checkGLError("glDrawElements");
+
+    glUseProgram(m_program);
+    glBindVertexArray(m_vao);
+    glActiveTexture(GL_TEXTURE0);
+    if (m_uFlipY >= 0) {
+        glUniform1i(m_uFlipY, m_flipY ? 1 : 0);
+    }
+    if (m_uFlipX >= 0) {
+        glUniform1i(m_uFlipX, m_flipX ? 1 : 0);
+    }
+
+    int internalWidth = 0;
+    int internalHeight = 0;
+    computeInternalRenderSize(internalWidth, internalHeight);
+    const bool useUpscaleTarget = internalWidth > 0 && internalHeight > 0;
+
+    if (useUpscaleTarget && ensureUpscaleTarget(internalWidth, internalHeight)) {
+        glBindFramebuffer(GL_FRAMEBUFFER, m_upscaleFbo);
+        glViewport(0, 0, m_upscaleWidth, m_upscaleHeight);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        float targetSharpen = 0.0f;
+        if (m_enhancementProfile) {
+            targetSharpen = m_nearestFiltering ? 0.22f : 0.35f;
+        }
+        if (std::abs(targetSharpen - m_sharpenStrength) > 0.0001f) {
+            m_sharpenStrength = targetSharpen;
+        }
+
+        if (m_uTexelSize >= 0) {
+            glUniform2f(m_uTexelSize,
+                        1.0f / std::max(1, width),
+                        1.0f / std::max(1, height));
+        }
+        if (m_uSharpenStrength >= 0) {
+            glUniform1f(m_uSharpenStrength, m_sharpenStrength);
+        }
+        if (m_uCrtEnabled >= 0) {
+            glUniform1i(m_uCrtEnabled, m_crtShaderEnabled ? 1 : 0);
+        }
+        if (m_uCrtStrength >= 0) {
+            glUniform1f(m_uCrtStrength, m_crtShaderEnabled ? 0.85f : 0.0f);
+        }
+        if (m_uAaMode >= 0) {
+            glUniform1i(m_uAaMode, m_antiAliasingMode);
+        }
+
+        glBindTexture(GL_TEXTURE_2D, m_texture);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+        checkGLError("glDrawElements upscale pass");
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        updateViewport();
+        m_viewportDirty = false;
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        if (m_uTexelSize >= 0) {
+            glUniform2f(m_uTexelSize,
+                        1.0f / std::max(1, m_upscaleWidth),
+                        1.0f / std::max(1, m_upscaleHeight));
+        }
+        if (m_uSharpenStrength >= 0) {
+            glUniform1f(m_uSharpenStrength, 0.0f);
+        }
+        if (m_uCrtEnabled >= 0) {
+            glUniform1i(m_uCrtEnabled, 0);
+        }
+        if (m_uCrtStrength >= 0) {
+            glUniform1f(m_uCrtStrength, 0.0f);
+        }
+        if (m_uAaMode >= 0) {
+            glUniform1i(m_uAaMode, 0);
+        }
+
+        // The FBO stores the image with OpenGL's bottom-up convention.
+        // When presenting to the screen we must flip Y to compensate,
+        // otherwise the image appears upside-down.
+        if (m_uFlipY >= 0) {
+            glUniform1i(m_uFlipY, 1);
+        }
+        if (m_uFlipX >= 0) {
+            glUniform1i(m_uFlipX, 0);
+        }
+
+        glBindTexture(GL_TEXTURE_2D, m_upscaleTexture);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+        checkGLError("glDrawElements present pass");
+    } else {
+        // Clear the framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        float targetSharpen = 0.0f;
+        if (m_enhancementProfile) {
+            targetSharpen = m_nearestFiltering ? 0.22f : 0.35f;
+        }
+        if (std::abs(targetSharpen - m_sharpenStrength) > 0.0001f) {
+            m_sharpenStrength = targetSharpen;
+        }
+
+        if (m_uTexelSize >= 0) {
+            glUniform2f(m_uTexelSize,
+                        1.0f / std::max(1, width),
+                        1.0f / std::max(1, height));
+        }
+        if (m_uSharpenStrength >= 0) {
+            glUniform1f(m_uSharpenStrength, m_sharpenStrength);
+        }
+        if (m_uCrtEnabled >= 0) {
+            glUniform1i(m_uCrtEnabled, m_crtShaderEnabled ? 1 : 0);
+        }
+        if (m_uCrtStrength >= 0) {
+            glUniform1f(m_uCrtStrength, m_crtShaderEnabled ? 0.85f : 0.0f);
+        }
+        if (m_uAaMode >= 0) {
+            glUniform1i(m_uAaMode, m_antiAliasingMode);
+        }
+
+        glBindTexture(GL_TEXTURE_2D, m_texture);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+        checkGLError("glDrawElements");
+    }
     
     // Swap buffers
     if (!eglSwapBuffers(m_display, m_surface)) {
@@ -250,6 +442,76 @@ void GLRenderer::setAspectRatio(float ratio) {
     m_aspectRatio = ratio;
     m_viewportDirty = true;  // Apply during next render
     LOGD("Aspect ratio set to: %.3f (will apply on next frame)", ratio);
+}
+
+void GLRenderer::setCrtShaderEnabled(bool enabled) {
+    if (m_crtShaderEnabled == enabled) {
+        return;
+    }
+    m_crtShaderEnabled = enabled;
+    LOGI("CRT shader: %s", enabled ? "enabled" : "disabled");
+}
+
+void GLRenderer::setResolutionScale(int scale) {
+    int clamped = std::max(0, std::min(scale, 9));
+    if (m_resolutionScale == clamped) {
+        return;
+    }
+    m_resolutionScale = clamped;
+    m_viewportDirty = true;
+    LOGI("Resolution scale set: %dx", m_resolutionScale);
+}
+
+void GLRenderer::setAntiAliasingMode(int mode) {
+    int clamped = std::max(0, std::min(mode, 2));
+    if (m_antiAliasingMode == clamped) {
+        return;
+    }
+    m_antiAliasingMode = clamped;
+    LOGI("Anti-aliasing mode set: %d", m_antiAliasingMode);
+}
+
+void GLRenderer::setOutputResolutionPreset(int targetHeight) {
+    int clamped = targetHeight;
+    if (clamped < 0) clamped = 0;
+    if (clamped > 0 && clamped < 720) clamped = 720;
+    if (clamped > 720 && clamped < 1080) clamped = 1080;
+    if (clamped > 1080 && clamped < 1440) clamped = 1440;
+    if (clamped > 1440 && clamped < 2160) clamped = 2160;
+    if (clamped > 2160) clamped = 2160;
+
+    if (m_outputTargetHeight == clamped) {
+        return;
+    }
+
+    m_outputTargetHeight = clamped;
+    m_viewportDirty = true;
+    if (m_outputTargetHeight == 0) {
+        LOGI("Output resolution preset: Native");
+    } else {
+        LOGI("Output resolution preset: %dp", m_outputTargetHeight);
+    }
+}
+
+void GLRenderer::setEnhancementProfile(bool enabled) {
+    if (m_enhancementProfile == enabled) {
+        return;
+    }
+    m_enhancementProfile = enabled;
+    m_sharpenStrength = 0.0f;
+    LOGI("Enhancement profile: %s", enabled ? "vulkan" : "default");
+}
+
+void GLRenderer::setFlipVertical(bool enabled) {
+    setFlip(enabled, enabled);
+}
+
+void GLRenderer::setFlip(bool flipX, bool flipY) {
+    if (m_flipX == flipX && m_flipY == flipY) return;
+    m_flipX = flipX;
+    m_flipY = flipY;
+    m_viewportDirty = true;
+    LOGI("Flip set: X=%d Y=%d", m_flipX ? 1 : 0, m_flipY ? 1 : 0);
 }
 
 bool GLRenderer::initEGL(ANativeWindow* window) {
@@ -287,9 +549,37 @@ bool GLRenderer::initEGL(ANativeWindow* window) {
         LOGE("eglChooseConfig failed");
         return false;
     }
+
+    EGLint nativeVisualId = 0;
+    if (!eglGetConfigAttrib(m_display, config, EGL_NATIVE_VISUAL_ID, &nativeVisualId)) {
+        LOGE("eglGetConfigAttrib(EGL_NATIVE_VISUAL_ID) failed: 0x%x", eglGetError());
+        return false;
+    }
+
+    const int targetWidth = 0;
+    const int targetHeight = 0;
+    if (ANativeWindow_setBuffersGeometry(window, targetWidth, targetHeight, nativeVisualId) != 0) {
+        LOGE("ANativeWindow_setBuffersGeometry failed for visual id %d (%dx%d)",
+             nativeVisualId, targetWidth, targetHeight);
+        return false;
+    }
+    LOGI("Using native output surface resolution (internal upscale active when selected)");
     
     // Create EGL surface
     m_surface = eglCreateWindowSurface(m_display, config, window, nullptr);
+        EGLint surfaceWidth = 0;
+        EGLint surfaceHeight = 0;
+        if (eglQuerySurface(m_display, m_surface, EGL_WIDTH, &surfaceWidth) &&
+            eglQuerySurface(m_display, m_surface, EGL_HEIGHT, &surfaceHeight)) {
+            m_surfaceWidth = static_cast<int>(surfaceWidth);
+            m_surfaceHeight = static_cast<int>(surfaceHeight);
+            LOGI("EGL surface size: %dx%d (window: %dx%d)",
+                 m_surfaceWidth, m_surfaceHeight, m_windowWidth, m_windowHeight);
+        } else {
+            m_surfaceWidth = m_windowWidth;
+            m_surfaceHeight = m_windowHeight;
+        }
+
     if (m_surface == EGL_NO_SURFACE) {
         LOGE("eglCreateWindowSurface failed: 0x%x", eglGetError());
         return false;
@@ -405,6 +695,30 @@ bool GLRenderer::initShaders() {
     // Set texture uniform
     GLint textureLocation = glGetUniformLocation(m_program, "uTexture");
     glUniform1i(textureLocation, 0);
+    m_uTexelSize = glGetUniformLocation(m_program, "uTexelSize");
+    m_uSharpenStrength = glGetUniformLocation(m_program, "uSharpenStrength");
+    m_uCrtEnabled = glGetUniformLocation(m_program, "uCrtEnabled");
+    m_uCrtStrength = glGetUniformLocation(m_program, "uCrtStrength");
+    m_uAaMode = glGetUniformLocation(m_program, "uAaMode");
+    m_uFlipY = glGetUniformLocation(m_program, "uFlipY");
+    m_uFlipX = glGetUniformLocation(m_program, "uFlipX");
+    if (m_uTexelSize >= 0) {
+        glUniform2f(m_uTexelSize,
+                    1.0f / static_cast<float>(m_frameWidth),
+                    1.0f / static_cast<float>(m_frameHeight));
+    }
+    if (m_uSharpenStrength >= 0) {
+        glUniform1f(m_uSharpenStrength, 0.0f);
+    }
+    if (m_uCrtEnabled >= 0) {
+        glUniform1i(m_uCrtEnabled, 0);
+    }
+    if (m_uCrtStrength >= 0) {
+        glUniform1f(m_uCrtStrength, 0.0f);
+    }
+    if (m_uAaMode >= 0) {
+        glUniform1i(m_uAaMode, 0);
+    }
     
     return true;
 }
@@ -477,13 +791,137 @@ bool GLRenderer::initTexture() {
     return true;
 }
 
+void GLRenderer::computeOutputRenderSize(int& outWidth, int& outHeight) const {
+    outWidth = 0;
+    outHeight = 0;
+
+    const int safeFrameWidth = std::max(1, m_frameWidth);
+    const int safeFrameHeight = std::max(1, m_frameHeight);
+
+    if (m_outputTargetHeight > 0) {
+        float aspect = 4.0f / 3.0f;
+        if (m_windowWidth > 0 && m_windowHeight > 0) {
+            aspect = static_cast<float>(m_windowWidth) / static_cast<float>(m_windowHeight);
+        } else if (safeFrameHeight > 0) {
+            aspect = static_cast<float>(safeFrameWidth) / static_cast<float>(safeFrameHeight);
+        }
+
+        outHeight = m_outputTargetHeight;
+        outWidth = std::max(1, static_cast<int>(std::lround(static_cast<float>(outHeight) * aspect)));
+        return;
+    }
+
+    const int upscale = std::max(0, std::min(m_resolutionScale, 9));
+    if (upscale > 1) {
+        outWidth = safeFrameWidth * upscale;
+        outHeight = safeFrameHeight * upscale;
+    }
+}
+
+void GLRenderer::computeInternalRenderSize(int& outWidth, int& outHeight) const {
+    outWidth = 0;
+    outHeight = 0;
+
+    const int safeFrameWidth = std::max(1, m_frameWidth);
+    const int safeFrameHeight = std::max(1, m_frameHeight);
+
+    if (m_outputTargetHeight > 0) {
+        float aspect = 4.0f / 3.0f;
+        if (m_windowWidth > 0 && m_windowHeight > 0) {
+            aspect = static_cast<float>(m_windowWidth) / static_cast<float>(m_windowHeight);
+        } else if (safeFrameHeight > 0) {
+            aspect = static_cast<float>(safeFrameWidth) / static_cast<float>(safeFrameHeight);
+        }
+
+        outHeight = m_outputTargetHeight;
+        outWidth = std::max(1, static_cast<int>(std::lround(static_cast<float>(outHeight) * aspect)));
+        return;
+    }
+
+    const int upscale = std::max(0, std::min(m_resolutionScale, 9));
+    if (upscale > 1) {
+        outWidth = safeFrameWidth * upscale;
+        outHeight = safeFrameHeight * upscale;
+    }
+}
+
+bool GLRenderer::ensureUpscaleTarget(int width, int height) {
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+
+    GLint maxTextureSize = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+    if (maxTextureSize > 0) {
+        width = std::min(width, static_cast<int>(maxTextureSize));
+        height = std::min(height, static_cast<int>(maxTextureSize));
+    }
+
+    if (m_upscaleFbo != 0 && m_upscaleTexture != 0 && m_upscaleWidth == width && m_upscaleHeight == height) {
+        return true;
+    }
+
+    if (m_upscaleTexture != 0) {
+        glDeleteTextures(1, &m_upscaleTexture);
+        m_upscaleTexture = 0;
+    }
+    if (m_upscaleFbo != 0) {
+        glDeleteFramebuffers(1, &m_upscaleFbo);
+        m_upscaleFbo = 0;
+    }
+
+    glGenTextures(1, &m_upscaleTexture);
+    glBindTexture(GL_TEXTURE_2D, m_upscaleTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glGenFramebuffers(1, &m_upscaleFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_upscaleFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_upscaleTexture, 0);
+
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        LOGE("Upscale framebuffer incomplete: 0x%x (%dx%d)", status, width, height);
+        if (m_upscaleTexture != 0) {
+            glDeleteTextures(1, &m_upscaleTexture);
+            m_upscaleTexture = 0;
+        }
+        if (m_upscaleFbo != 0) {
+            glDeleteFramebuffers(1, &m_upscaleFbo);
+            m_upscaleFbo = 0;
+        }
+        m_upscaleWidth = 0;
+        m_upscaleHeight = 0;
+        return false;
+    }
+
+    m_upscaleWidth = width;
+    m_upscaleHeight = height;
+    LOGI("Internal upscale target: %dx%d", m_upscaleWidth, m_upscaleHeight);
+    return true;
+}
+
 void GLRenderer::updateViewport() {
-    if (m_windowWidth <= 0 || m_windowHeight <= 0) {
+    const int renderWidth = m_surfaceWidth > 0 ? m_surfaceWidth : m_windowWidth;
+    const int renderHeight = m_surfaceHeight > 0 ? m_surfaceHeight : m_windowHeight;
+
+    if (renderWidth <= 0 || renderHeight <= 0) {
+        return;
+    }
+
+    if (m_outputTargetHeight > 0) {
+        glViewport(0, 0, renderWidth, renderHeight);
+        LOGD("Viewport set fullscreen for output preset: 0,0 %dx%d (preset: %dp)",
+             renderWidth, renderHeight, m_outputTargetHeight);
         return;
     }
     
     // Calculate viewport to maintain aspect ratio with letterboxing
-    float windowAspect = static_cast<float>(m_windowWidth) / m_windowHeight;
+    float windowAspect = static_cast<float>(renderWidth) / renderHeight;
     float frameAspect = static_cast<float>(m_frameWidth) / m_frameHeight;
     
     // Use the user-specified aspect ratio if different from frame
@@ -493,22 +931,22 @@ void GLRenderer::updateViewport() {
     
     int viewportX = 0;
     int viewportY = 0;
-    int viewportWidth = m_windowWidth;
-    int viewportHeight = m_windowHeight;
+    int viewportWidth = renderWidth;
+    int viewportHeight = renderHeight;
     
     if (windowAspect > frameAspect) {
         // Window is wider than frame - add side bars
-        viewportWidth = static_cast<int>(m_windowHeight * frameAspect);
-        viewportX = (m_windowWidth - viewportWidth) / 2;
+        viewportWidth = static_cast<int>(renderHeight * frameAspect);
+        viewportX = (renderWidth - viewportWidth) / 2;
     } else if (windowAspect < frameAspect) {
         // Window is taller than frame - add letterbox
-        viewportHeight = static_cast<int>(m_windowWidth / frameAspect);
-        viewportY = (m_windowHeight - viewportHeight) / 2;
+        viewportHeight = static_cast<int>(renderWidth / frameAspect);
+        viewportY = (renderHeight - viewportHeight) / 2;
     }
-    
+
     glViewport(viewportX, viewportY, viewportWidth, viewportHeight);
     
     LOGD("Viewport set: %d,%d %dx%d (window: %dx%d, frame: %dx%d, aspect: %.2f)",
          viewportX, viewportY, viewportWidth, viewportHeight,
-         m_windowWidth, m_windowHeight, m_frameWidth, m_frameHeight, frameAspect);
+            renderWidth, renderHeight, m_frameWidth, m_frameHeight, frameAspect);
 }

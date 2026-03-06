@@ -11,6 +11,7 @@
     <string name="bios_path_value">BIOS path: %1$s</string>
     <string name="bios_required">Set BIOS path before selecting a game</string>
     <string name="load_cd">Load CD</string>
+    <string name="render_options">Render Options</string>
     <string name="cd_loaded">CD loaded</string>
     <string name="cd_ejected">CD ejected</string>
     <string name="cd_load_failed">Failed to load CD</string>

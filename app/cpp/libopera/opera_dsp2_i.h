@@ -1,4 +1,0 @@
-#ifndef LIBFREEDO_DSP2_I_H_INCLUDED
-#define LIBFREEDO_DSP2_I_H_INCLUDED
-
-#endif

@@ -18,6 +18,12 @@ public:
     void renderFrame(const void* pixels, int width, int height) override;
     void setFiltering(bool nearest) override;
     void setAspectRatio(float ratio) override;
+    void setCrtShaderEnabled(bool enabled) override;
+    void setResolutionScale(int scale) override;
+    void setAntiAliasingMode(int mode) override;
+    void setOutputResolutionPreset(int targetHeight) override;
+    void setFlipVertical(bool enabled) override;
+    void setFlip(bool flipX, bool flipY) override;
     const char* getName() const override { return "Software (CPU)"; }
     bool isInitialized() const override { return m_initialized; }
     int getWindowWidth() const override { return m_windowWidth; }
@@ -32,5 +38,7 @@ private:
     bool m_initialized = false;
     bool m_nearestFiltering = true;
     float m_aspectRatio = 4.0f / 3.0f;
+    bool m_flipX = false;
+    bool m_flipY = false;
     std::mutex m_mutex;
 };

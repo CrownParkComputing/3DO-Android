@@ -2,9 +2,9 @@
  * 4DO Native Core - FourdoCore Implementation
  *
  * Integrates all native subsystem components (Bios, Nvram, CdromInterface,
- * InputSystem) with the libopera hardware-emulation backend.
+ * InputSystem) with the legacy hardware-emulation backend.
  *
- * libopera is used internally for the actual 3DO hardware emulation.
+ * A legacy backend is used internally for the actual 3DO hardware emulation.
  * Individual components will be replaced with pure C++ implementations
  * once each phase of the NATIVE_REWRITE_PLAN is complete.
  */
@@ -18,7 +18,7 @@
 #include <time.h>
 
 // -----------------------------------------------------------------------
-// libopera C interface (hardware-emulation backend)
+// Legacy C interface (hardware-emulation backend)
 // -----------------------------------------------------------------------
 extern "C" {
     // Memory
@@ -49,7 +49,7 @@ extern "C" {
     uint32_t opera_dsp_loop(void);
 
     // PBUS (controller)
-#include "libopera/opera_pbus.h"
+#include "native_backend_pbus.h"
 
     // XBUS (CD-ROM attachment)
     typedef void* (*opera_xbus_device)(int, void*);
@@ -71,7 +71,7 @@ extern "C" {
     uint32_t opera_3do_state_save(void* buf, uint32_t size);
     uint32_t opera_3do_state_load(void const* buf, uint32_t size);
 
-    // libopera logging hook
+    // Legacy logging hook
     typedef void (*opera_log_printf_t)(int level, const char* fmt, ...);
     void opera_log_set_func(void* func);
 }
@@ -84,9 +84,9 @@ extern "C" void android_input_reset_state();
 extern "C" void render_frame(const void* pixels, int width, int height);
 
 // -----------------------------------------------------------------------
-// libopera logging bridge – redirect opera_log_printf to Android logcat
+// Legacy logging bridge – redirect backend log output to Android logcat
 // -----------------------------------------------------------------------
-#define LOG_TAG_OPERA "libopera"
+#define LOG_TAG_LEGACY "native-core"
 
 static void opera_log_to_logcat(int level, const char* fmt, ...) {
     android_LogPriority priority;
@@ -98,7 +98,7 @@ static void opera_log_to_logcat(int level, const char* fmt, ...) {
     }
     va_list args;
     va_start(args, fmt);
-    __android_log_vprint(priority, LOG_TAG_OPERA, fmt, args);
+    __android_log_vprint(priority, LOG_TAG_LEGACY, fmt, args);
     va_end(args);
 }
 
@@ -106,12 +106,12 @@ static void opera_log_to_logcat(int level, const char* fmt, ...) {
 // Native NVRAM format functions
 //
 // These implement the same 3DO linked-memory filesystem format as
-// opera_nvram.c, allowing that libopera C file to be removed from the
+// legacy NVRAM module, allowing that source file to be removed from the
 // build.  Structures from discdata.h / linkedmemblock.h are used directly.
 // -----------------------------------------------------------------------
-#include "libopera/discdata.h"
-#include "libopera/linkedmemblock.h"
-#include "libopera/endianness.h"
+#include "native_backend_discdata.h"
+#include "native_backend_linkedmemblock.h"
+#include "native_backend_endianness.h"
 
 extern "C" {
 
@@ -140,8 +140,8 @@ void opera_nvram_init(void* buf, const int bufsize) {
     memset(disc_label->dl_VolumeSyncBytes, VOLUME_SYNC_BYTE, VOLUME_SYNC_BYTE_LEN);
     disc_label->dl_VolumeStructureVersion = VOLUME_STRUCTURE_LINKED_MEM;
     disc_label->dl_VolumeFlags = 0;
-    strncpy(reinterpret_cast<char*>(disc_label->dl_VolumeCommentary),
-            "opera formatted", VOLUME_COM_LEN);
+        strncpy(reinterpret_cast<char*>(disc_label->dl_VolumeCommentary),
+            "native formatted", VOLUME_COM_LEN);
     strncpy(reinterpret_cast<char*>(disc_label->dl_VolumeIdentifier),
             "nvram", VOLUME_ID_LEN);
     disc_label->dl_VolumeUniqueIdentifier   = swap32_if_le(NVRAM_VOLUME_UNIQUE_ID); // from discdata.h
@@ -371,7 +371,7 @@ void opera_clock_timer_set_delay(const uint32_t td) {
 // Native region implementation (replaces opera_region.c)
 // The region struct mirrors opera_region_i.h (0=NTSC, 1=PAL1, 2=PAL2).
 // -----------------------------------------------------------------------
-#include "libopera/opera_region_i.h"
+#include "native_backend_region_i.h"
 
 extern "C" {
 
@@ -429,7 +429,7 @@ uint32_t opera_region_max_height(void)     { return 288; }
 
 extern "C" {
 
-#include "libopera/opera_fixedpoint_math.h"
+#include "native_backend_fixedpoint_math.h"
 
 static int32_t sqrt_frac16_native(int32_t x) {
     // Digit-by-digit integer square root for 16.16 fixed-point.

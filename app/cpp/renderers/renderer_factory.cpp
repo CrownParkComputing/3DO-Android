@@ -59,11 +59,14 @@ IRenderer* createRenderer(RendererType type) {
         default:
             // Auto-detect best available renderer
             LOGD("Auto-detecting best renderer...");
-            
-            // For now, prefer OpenGL ES as it's more widely compatible
-            // Vulkan can be enabled once fully implemented
-            renderer = new GLRenderer();
-            LOGI("Selected OpenGL ES renderer (auto-detect)");
+
+            if (isVulkanAvailable()) {
+                renderer = new VulkanRenderer();
+                LOGI("Selected Vulkan renderer (auto-detect)");
+            } else {
+                renderer = new GLRenderer();
+                LOGI("Selected OpenGL ES renderer (auto-detect)");
+            }
             break;
     }
     

@@ -12,10 +12,12 @@ local.properties
 
 # NDK/CMake
 .cxx/
+*/.cxx/
 .externalNativeBuild/
 
 # Logs
 *.log
+/build/logs/
 
 # OS files
 .DS_Store

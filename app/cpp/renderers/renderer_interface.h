@@ -44,6 +44,35 @@ public:
      * @param ratio Width/height ratio (e.g., 4.0f/3.0f for 4:3)
      */
     virtual void setAspectRatio(float ratio) = 0;
+
+    /**
+     * Enable/disable CRT post-process shader effect.
+     */
+    virtual void setCrtShaderEnabled(bool enabled) = 0;
+
+    /**
+     * Set integer rendering scale target (e.g. 2x/4x/8x).
+     */
+    virtual void setResolutionScale(int scale) = 0;
+
+    /**
+     * Set anti-aliasing mode (0=off, 1=low, 2=high).
+     */
+    virtual void setAntiAliasingMode(int mode) = 0;
+
+    /**
+     * Set output resolution preset by target height (0=native, 720/1080/1440/2160).
+     */
+    virtual void setOutputResolutionPreset(int targetHeight) = 0;
+    /**
+     * Set flip state for rendering. Allows independent horizontal/vertical flips.
+     */
+    virtual void setFlip(bool flipX, bool flipY) = 0;
+
+    /**
+     * Set vertical flip for rendering output (useful for device-specific surface orientation fixes).
+     */
+    virtual void setFlipVertical(bool enabled) = 0;
     
     /**
      * Get the renderer name for display/debugging.

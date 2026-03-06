@@ -1,19 +1,15 @@
 package com.fourdo.android;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
-import android.media.AudioAttributes;
-import android.media.AudioFormat;
-import android.media.AudioManager;
-import android.media.AudioTrack;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Process;
 import android.util.Log;
-import android.view.InputDevice;
+import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -23,12 +19,17 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.File;
 
 public class EmulatorActivity extends AppCompatActivity {
+
+    private static final int MAX_RESOLUTION_SCALE = 9;
 
     private static final int REQUEST_FILE_PICKER = 1;
     private static final int REQUEST_BIOS_PICKER = 2;
@@ -43,6 +44,7 @@ public class EmulatorActivity extends AppCompatActivity {
     private Button pauseButton;
     private Button resetButton;
     private Button loadCdButton;
+    private Button renderOptionsButton;
     private Button backButton;
     private Button controllerMapButton;
     private LinearLayout overlayMenu;
@@ -53,26 +55,35 @@ public class EmulatorActivity extends AppCompatActivity {
     private Button aspectRatioButton;
     private Button rendererButton;
     private Button filteringButton;
-    private android.widget.ImageButton menuToggleButton;
+    private Button aaButton;
+    private Button crtButton;
+    private Button scaleButton;
+    private Button menuToggleButton;
+    private Button debugToggleButton;
     private android.widget.TextView statusIndicator;
     private android.widget.TextView fpsCounter;
     private LinearLayout quickToolbar;
+    private String appVersion = "";
     
     // FPS counter
     private int frameCount = 0;
     private long lastFpsTime = 0;
     private android.os.Handler fpsHandler = new android.os.Handler();
     private Runnable fpsRunnable;
+    private boolean debugModeEnabled = false;
     
     // Settings state
     private boolean aspectRatio16by9 = false;  // false = 4:3, true = 16:9
-    private int currentRenderer = RENDERER_OPENGL_ES;
+    private int currentRenderer = RENDERER_VULKAN;
     private boolean nearestFiltering = false;  // false = linear, true = nearest
+    private int antiAliasingMode = 0;          // 0=off,1=low,2=high
+    private boolean crtShaderEnabled = false;
+    private int resolutionScale = 0;
+    private int outputResolutionPreset = 0;
+    private boolean flipVertical = false;
     private SurfaceView emulatorSurfaceView;
     private String mGamePath = null;
-    private AudioTrack audioTrack;
-    private Thread audioThread;
-    private volatile boolean audioRunning;
+    private final EmulatorAudioEngine audioEngine = new EmulatorAudioEngine();
 
     public static void start(Context context) {
         start(context, null);
@@ -89,45 +100,56 @@ public class EmulatorActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        // Set optimal orientation based on device type
-        DeviceOrientationManager.setOptimalEmulatorOrientation(this);
-        
-        // Keep screen on during emulation
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        
-        setContentView(R.layout.activity_emulator);
+        configureWindowAndLayout();
+        bindViews();
+        initializeUiState();
+        setupActivityButtons();
+        setupEmulatorSurface();
+        handleStartupIntent(getIntent());
+    }
 
+    private void configureWindowAndLayout() {
+        DeviceOrientationManager.setOptimalEmulatorOrientation(this);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setContentView(R.layout.activity_emulator);
+        try {
+            appVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            appVersion = "?";
+        }
+    }
+
+    private void bindViews() {
         pauseButton = findViewById(R.id.pause_button);
         resetButton = findViewById(R.id.reset_button);
         loadCdButton = findViewById(R.id.load_cd_button);
+        renderOptionsButton = findViewById(R.id.render_options_button);
         backButton = findViewById(R.id.back_button);
         controllerMapButton = findViewById(R.id.controller_map_button);
         overlayMenu = findViewById(R.id.overlay_menu);
-        
-        // Quick toolbar buttons
-        cdButton = findViewById(R.id.cd_button);
-        aspectRatioButton = findViewById(R.id.aspect_ratio_button);
-        rendererButton = findViewById(R.id.renderer_button);
-        filteringButton = findViewById(R.id.filtering_button);
+        cdButton = loadCdButton;
+        aspectRatioButton = null;
+        rendererButton = null;
+        filteringButton = null;
+        aaButton = null;
+        crtButton = null;
+        scaleButton = null;
         menuToggleButton = findViewById(R.id.menu_toggle_button);
+        debugToggleButton = findViewById(R.id.debug_toggle_button);
         statusIndicator = findViewById(R.id.status_indicator);
         fpsCounter = findViewById(R.id.fps_counter);
-        quickToolbar = findViewById(R.id.quick_toolbar);
-        
-        // Load saved settings
-        loadSettings();
-        
-        // Initialize button labels
-        updateButtonLabels();
-        
-        // Start FPS counter
-        startFpsCounter();
-        
-        // Setup quick toolbar button listeners
-        setupQuickToolbar();
+        quickToolbar = null;
+    }
 
-        // Menu toggle button
+    private void initializeUiState() {
+        applyDebugModeUi();
+        loadSettings();
+        updateButtonLabels();
+        startFpsCounter();
+        setupQuickToolbar();
+    }
+
+    private void setupActivityButtons() {
         menuToggleButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -135,42 +157,11 @@ public class EmulatorActivity extends AppCompatActivity {
             }
         });
 
-        // Controller map button
         controllerMapButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 openControllerMap();
                 hideOverlayMenu();
-            }
-        });
-
-        FrameLayout surfaceContainer = findViewById(R.id.emulator_surface);
-        emulatorSurfaceView = new SurfaceView(this);
-        surfaceContainer.addView(emulatorSurfaceView, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT));
-
-        emulatorSurfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
-            private boolean surfaceReady = false;
-
-            @Override
-            public void surfaceCreated(SurfaceHolder holder) {
-                // Don't set surface yet - wait for surfaceChanged with proper size
-            }
-
-            @Override
-            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                if (width > 0 && height > 0) {
-                    initRenderer(width, height);
-                    setSurface(holder.getSurface());
-                    surfaceReady = true;
-                }
-            }
-
-            @Override
-            public void surfaceDestroyed(SurfaceHolder holder) {
-                surfaceReady = false;
-                setSurface(null);
             }
         });
 
@@ -198,7 +189,12 @@ public class EmulatorActivity extends AppCompatActivity {
             }
         });
 
-        // Controller map button is now directly accessible, no need for overlay menu
+        renderOptionsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showRenderOptionsDialog();
+            }
+        });
 
         backButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -207,28 +203,66 @@ public class EmulatorActivity extends AppCompatActivity {
                 finish();
             }
         });
+    }
 
-        // Get game path from intent
-        Intent intent = getIntent();
+    private void setupEmulatorSurface() {
+        FrameLayout surfaceContainer = findViewById(R.id.emulator_surface);
+        emulatorSurfaceView = new SurfaceView(this);
+        surfaceContainer.addView(emulatorSurfaceView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        emulatorSurfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                // Don't set surface yet - wait for surfaceChanged with proper size
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                if (width > 0 && height > 0) {
+                    applyRendererDefaults(width, height, holder.getSurface());
+                }
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+                setSurface(null);
+            }
+        });
+    }
+
+    private void applyRendererDefaults(int width, int height, Surface surface) {
+        setRendererType(currentRenderer);
+        setFiltering(nearestFiltering);
+        setAspectRatio(aspectRatio16by9);
+        setAntiAliasingMode(antiAliasingMode);
+        setCrtShaderEnabled(crtShaderEnabled);
+        setResolutionScale(resolutionScale);
+        setOutputResolutionPreset(outputResolutionPreset);
+        setFlipVertical(false);
+        setFlipX(false);
+        setFlipY(false);
+        initRenderer(width, height);
+        setSurface(surface);
+    }
+
+    private void handleStartupIntent(Intent intent) {
         if (intent != null && intent.hasExtra("game_path")) {
             mGamePath = intent.getStringExtra("game_path");
         }
-        
-        // If no game path, open file browser
-        String biosPath = getSavedBiosPath();
-        if (!isValidFilePath(biosPath)) {
+
+        String biosPath = EmulatorPathStore.getSavedBiosPath(this);
+        if (!EmulatorPathStore.isValidFilePath(biosPath)) {
             Toast.makeText(this, R.string.bios_required, Toast.LENGTH_SHORT).show();
             openBiosBrowser();
         } else if (mGamePath == null || mGamePath.isEmpty()) {
-            // Boot into BIOS - no game selected, show menu after boot
             initializeEmulator(null);
-            // Show the game selection menu after a short delay
             emulatorSurfaceView.postDelayed(() -> {
                 showOverlayMenu();
                 Toast.makeText(this, "Select a game from the menu", Toast.LENGTH_LONG).show();
             }, 1000);
         } else {
-            // Initialize emulator with the game path
             initializeEmulator(mGamePath);
         }
     }
@@ -244,10 +278,11 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private void openLoadCdBrowser() {
-        String libraryPath = getSavedLibraryFolder();
-        if (isValidDirectoryPath(libraryPath)) {
+        String libraryPath = EmulatorPathStore.getSavedLibraryFolder(this);
+        if (EmulatorPathStore.isValidDirectoryPath(libraryPath)) {
             Intent intent = new Intent(this, GameLibraryActivity.class);
             intent.putExtra(GameLibraryActivity.EXTRA_LIBRARY_PATH, libraryPath);
+            intent.putExtra(GameLibraryActivity.EXTRA_PICK_MODE, true);
             startActivityForResult(intent, REQUEST_LOAD_CD_PICKER);
         } else {
             Intent intent = new Intent(this, FileBrowserActivity.class);
@@ -269,107 +304,546 @@ public class EmulatorActivity extends AppCompatActivity {
     
     private void setupQuickToolbar() {
         // CD button - long press to load CD
-        cdButton.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                openLoadCdBrowser();
-                showStatusToast("Load CD...");
-                return true;
-            }
-        });
-        cdButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showStatusToast("Long press to load CD");
-            }
-        });
+        if (cdButton != null) {
+            cdButton.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View v) {
+                    ejectCdImage();
+                    showStatusToast("CD ejected");
+                    return true;
+                }
+            });
+            cdButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    openLoadCdBrowser();
+                    showStatusToast("Load CD...");
+                }
+            });
+        }
+
+        // Open options menu from any render-option toolbar button
+        if (aspectRatioButton != null) {
+            aspectRatioButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showRenderOptionsDialog();
+                }
+            });
+        }
+
+        if (rendererButton != null) {
+            rendererButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showRenderOptionsDialog();
+                }
+            });
+        }
+
+        if (filteringButton != null) {
+            filteringButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showRenderOptionsDialog();
+                }
+            });
+        }
+
+        // Options button opens dropdown menu directly
+        if (aaButton != null) {
+            aaButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showRenderOptionsDialog();
+                }
+            });
+        }
+
+        if (crtButton != null) {
+            crtButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showRenderOptionsDialog();
+                }
+            });
+        }
+
+        if (scaleButton != null) {
+            scaleButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showRenderOptionsDialog();
+                }
+            });
+        }
         
-        // Aspect ratio toggle
-        aspectRatioButton.setOnClickListener(new View.OnClickListener() {
+        // Update status indicator
+        updateStatusIndicator();
+        
+        // Debug toggle button
+        debugToggleButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                aspectRatio16by9 = !aspectRatio16by9;
+                toggleDebugMode();
+            }
+        });
+    }
+
+    private String[] getResolutionScaleOptions() {
+        return new String[] {
+                "Auto (Based on Window Size)",
+                "1x Native",
+                "2x",
+                "3x Native (for 720p)",
+                "4x",
+                "5x Native (for 1080p)",
+                "6x Native (for 1440p)",
+                "7x",
+                "8x",
+                "9x Native (for 4K)"
+        };
+    }
+
+    private int getResolutionScaleIndex(int scale) {
+        if (scale < 0) {
+            return 0;
+        }
+        if (scale > MAX_RESOLUTION_SCALE) {
+            return MAX_RESOLUTION_SCALE;
+        }
+        return scale;
+    }
+
+    private int getResolutionScaleByIndex(int index) {
+        if (index < 0) {
+            return 0;
+        }
+        if (index > MAX_RESOLUTION_SCALE) {
+            return MAX_RESOLUTION_SCALE;
+        }
+        return index;
+    }
+
+    private boolean isHardwareRendererSelected() {
+        return currentRenderer != RENDERER_SOFTWARE;
+    }
+
+    private void showRenderOptionsDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Render Options");
+
+        // Wrap options in a ScrollView so long dialogs remain accessible
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(36, 24, 36, 8);
+        scroll.addView(root);
+
+        TextView rendererLabel = new TextView(this);
+        rendererLabel.setText("Renderer");
+        root.addView(rendererLabel);
+        Spinner rendererSpinner = new Spinner(this);
+        String[] rendererOptions = {"Automatic", "OpenGL ES", "Vulkan", "Software"};
+        rendererSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, rendererOptions));
+        int rendererSelection = 0;
+        if (currentRenderer == RENDERER_OPENGL_ES) {
+            rendererSelection = 1;
+        } else if (currentRenderer == RENDERER_VULKAN) {
+            rendererSelection = 2;
+        } else if (currentRenderer == RENDERER_SOFTWARE) {
+            rendererSelection = 3;
+        }
+        rendererSpinner.setSelection(rendererSelection);
+        root.addView(rendererSpinner);
+
+        TextView aspectLabel = new TextView(this);
+        aspectLabel.setText("Aspect Ratio");
+        root.addView(aspectLabel);
+        Spinner aspectSpinner = new Spinner(this);
+        String[] aspectOptions = {"4:3", "16:9"};
+        aspectSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, aspectOptions));
+        aspectSpinner.setSelection(aspectRatio16by9 ? 1 : 0);
+        root.addView(aspectSpinner);
+
+        TextView filterLabel = new TextView(this);
+        filterLabel.setText("Texture Filter");
+        root.addView(filterLabel);
+        Spinner filterSpinner = new Spinner(this);
+        String[] filterOptions = {"Linear (Smooth)", "Nearest (Sharp)"};
+        filterSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, filterOptions));
+        filterSpinner.setSelection(nearestFiltering ? 1 : 0);
+        root.addView(filterSpinner);
+
+        TextView aaLabel = new TextView(this);
+        aaLabel.setText("Anti-Aliasing");
+        root.addView(aaLabel);
+        Spinner aaSpinner = new Spinner(this);
+        String[] aaOptions = {"Off", "Low (FXAA)", "High (FXAA+)"};
+        aaSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, aaOptions));
+        aaSpinner.setSelection(antiAliasingMode);
+        root.addView(aaSpinner);
+
+        TextView crtLabel = new TextView(this);
+        crtLabel.setText("CRT Shader");
+        root.addView(crtLabel);
+        Spinner crtSpinner = new Spinner(this);
+        String[] crtOptions = {"Off", "On"};
+        crtSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, crtOptions));
+        crtSpinner.setSelection(crtShaderEnabled ? 1 : 0);
+        root.addView(crtSpinner);
+
+        TextView resLabel = new TextView(this);
+        resLabel.setText("Resolution");
+        root.addView(resLabel);
+        Spinner resSpinner = new Spinner(this);
+        String[] resOptions = getResolutionScaleOptions();
+        resSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, resOptions));
+        resSpinner.setSelection(getResolutionScaleIndex(resolutionScale));
+        resSpinner.setEnabled(isHardwareRendererSelected());
+        root.addView(resSpinner);
+
+        final boolean[] ready = {false};
+
+        rendererSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                int selectedRenderer;
+                if (position == 1) {
+                    selectedRenderer = RENDERER_OPENGL_ES;
+                } else if (position == 2) {
+                    selectedRenderer = RENDERER_VULKAN;
+                } else if (position == 3) {
+                    selectedRenderer = RENDERER_SOFTWARE;
+                } else {
+                    selectedRenderer = RENDERER_AUTO;
+                }
+                if (!ready[0] || currentRenderer == selectedRenderer) return;
+                currentRenderer = selectedRenderer;
+                if (!isHardwareRendererSelected()) {
+                    resolutionScale = 1;
+                    outputResolutionPreset = 0;
+                    setResolutionScale(resolutionScale);
+                    setOutputResolutionPreset(0);
+                    resSpinner.setSelection(getResolutionScaleIndex(resolutionScale));
+                }
+                resSpinner.setEnabled(isHardwareRendererSelected());
+                setRendererType(currentRenderer);
+                rebindRendererSurface();
+                saveSettings();
+                updateButtonLabels();
+                updateStatusIndicator();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+
+        aspectSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                boolean newWide = (position == 1);
+                if (!ready[0] || aspectRatio16by9 == newWide) return;
+                aspectRatio16by9 = newWide;
                 setAspectRatio(aspectRatio16by9);
                 saveSettings();
                 updateButtonLabels();
                 updateStatusIndicator();
-                showStatusToast(aspectRatio16by9 ? "16:9" : "4:3");
             }
-        });
-        
-        // Renderer toggle (skip Vulkan - not implemented)
-        rendererButton.setOnClickListener(new View.OnClickListener() {
+
             @Override
-            public void onClick(View v) {
-                // Cycle: OpenGL ES -> Software -> OpenGL ES (skip Vulkan)
-                if (currentRenderer == RENDERER_OPENGL_ES) {
-                    currentRenderer = RENDERER_SOFTWARE;
-                } else {
-                    currentRenderer = RENDERER_OPENGL_ES;
-                }
-                setRendererType(currentRenderer);
-                saveSettings();
-                updateButtonLabels();
-                updateStatusIndicator();
-                String name = currentRenderer == RENDERER_OPENGL_ES ? "OpenGL ES" : "Software";
-                showStatusToast("Renderer: " + name);
-            }
+            public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
-        
-        // Filtering toggle
-        filteringButton.setOnClickListener(new View.OnClickListener() {
+
+        filterSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
-            public void onClick(View v) {
-                nearestFiltering = !nearestFiltering;
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                boolean newNearest = (position == 1);
+                if (!ready[0] || nearestFiltering == newNearest) return;
+                nearestFiltering = newNearest;
                 setFiltering(nearestFiltering);
                 saveSettings();
                 updateButtonLabels();
                 updateStatusIndicator();
-                showStatusToast(nearestFiltering ? "Nearest (Sharp)" : "Linear (Smooth)");
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+
+        aaSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                if (!ready[0] || antiAliasingMode == position) return;
+                antiAliasingMode = position;
+                setAntiAliasingMode(antiAliasingMode);
+                saveSettings();
+                updateButtonLabels();
+                updateStatusIndicator();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+
+        crtSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                boolean newCrt = (position == 1);
+                if (!ready[0] || crtShaderEnabled == newCrt) return;
+                crtShaderEnabled = newCrt;
+                setCrtShaderEnabled(crtShaderEnabled);
+                saveSettings();
+                updateButtonLabels();
+                updateStatusIndicator();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+
+        resSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                int newScale = getResolutionScaleByIndex(position);
+                if (!ready[0] || resolutionScale == newScale) return;
+                if (!isHardwareRendererSelected()) {
+                    resSpinner.setSelection(getResolutionScaleIndex(resolutionScale));
+                    showStatusToast("Upscaling is only available on hardware renderers");
+                    return;
+                }
+                resolutionScale = newScale;
+                outputResolutionPreset = 0;
+                setResolutionScale(resolutionScale);
+                setOutputResolutionPreset(0);
+                rebindRendererSurface();
+                saveSettings();
+                updateButtonLabels();
+                updateStatusIndicator();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+
+        ready[0] = true;
+
+        // Flip controls removed: renderer will remain unflipped at runtime
+
+        builder.setView(scroll);
+        builder.setPositiveButton("Close", null);
+        builder.show();
+    }
+
+    private void rebindRendererSurface() {
+        if (emulatorSurfaceView == null) {
+            return;
+        }
+
+        final SurfaceHolder holder = emulatorSurfaceView.getHolder();
+        if (holder == null) {
+            return;
+        }
+
+        final Surface surface = holder.getSurface();
+        if (surface == null || !surface.isValid()) {
+            return;
+        }
+
+        int width = emulatorSurfaceView.getWidth();
+        int height = emulatorSurfaceView.getHeight();
+        if (width > 0 && height > 0) {
+            initRenderer(width, height);
+        }
+
+        setSurface(null);
+        emulatorSurfaceView.post(new Runnable() {
+            @Override
+            public void run() {
+                Surface reboundSurface = holder.getSurface();
+                if (reboundSurface != null && reboundSurface.isValid()) {
+                    setSurface(reboundSurface);
+                }
             }
         });
-        
-        // Update status indicator
-        updateStatusIndicator();
     }
     
     private void loadSettings() {
         SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
         aspectRatio16by9 = prefs.getBoolean("aspect_ratio_16by9", false);
-        currentRenderer = prefs.getInt("renderer_type", RENDERER_OPENGL_ES);
+        currentRenderer = normalizeRendererType(prefs.getInt(SettingsActivity.KEY_RENDERER_TYPE, RENDERER_AUTO));
         nearestFiltering = prefs.getBoolean("nearest_filtering", false);
+        antiAliasingMode = prefs.getInt("anti_aliasing_mode", 0);
+        if (antiAliasingMode < 0 || antiAliasingMode > 2) {
+            antiAliasingMode = 0;
+        }
+        crtShaderEnabled = prefs.getBoolean("crt_shader_enabled", false);
+        resolutionScale = prefs.getInt("resolution_scale", 0);
+        if (resolutionScale < 0 || resolutionScale > MAX_RESOLUTION_SCALE) {
+            resolutionScale = 0;
+        }
+        outputResolutionPreset = prefs.getInt("output_resolution_preset", 0);
+        if (!(outputResolutionPreset == 0 || outputResolutionPreset == 720 || outputResolutionPreset == 1080
+                || outputResolutionPreset == 1440 || outputResolutionPreset == 2160)) {
+            outputResolutionPreset = 0;
+        }
+        if (!isHardwareRendererSelected()) {
+            resolutionScale = 1;
+            outputResolutionPreset = 0;
+        }
+        // Ensure display uses no flips by default (restore original state)
+        flipVertical = false;
+        setFlipVertical(false);
+        setFlipX(false);
+        setFlipY(false);
     }
     
     private void saveSettings() {
         SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
         prefs.edit()
             .putBoolean("aspect_ratio_16by9", aspectRatio16by9)
-            .putInt("renderer_type", currentRenderer)
+            .putInt(SettingsActivity.KEY_RENDERER_TYPE, currentRenderer)
             .putBoolean("nearest_filtering", nearestFiltering)
+            .putInt("anti_aliasing_mode", antiAliasingMode)
+            .putBoolean("crt_shader_enabled", crtShaderEnabled)
+            .putInt("resolution_scale", resolutionScale)
+                .putInt("output_resolution_preset", outputResolutionPreset)
             .apply();
+    }
+
+    private String getRendererShortName(int rendererType) {
+        if (rendererType == RENDERER_VULKAN) {
+            return "Vulkan";
+        }
+        if (rendererType == RENDERER_OPENGL_ES) {
+            return "OpenGL";
+        }
+        if (rendererType == RENDERER_SOFTWARE) {
+            return "Soft";
+        }
+        return "Auto";
+    }
+
+    private int normalizeRendererType(int rendererType) {
+        if (rendererType == RENDERER_AUTO) {
+            return RENDERER_AUTO;
+        }
+        if (rendererType == RENDERER_OPENGL_ES) {
+            return RENDERER_OPENGL_ES;
+        }
+        if (rendererType == RENDERER_VULKAN) {
+            return RENDERER_VULKAN;
+        }
+        if (rendererType == RENDERER_SOFTWARE) {
+            return RENDERER_SOFTWARE;
+        }
+        return RENDERER_AUTO;
     }
     
     private void updateStatusIndicator() {
+        if (statusIndicator == null) {
+            return;
+        }
+
         String aspect = aspectRatio16by9 ? "16:9" : "4:3";
-        String renderer = currentRenderer == RENDERER_OPENGL_ES ? "OpenGL" :
-                          currentRenderer == RENDERER_VULKAN ? "Vulkan" : "Soft";
+        String renderer = getRendererShortName(currentRenderer);
+        String nativeRenderer = getRendererName();
+        if (nativeRenderer != null && !nativeRenderer.isEmpty() && !"None".equals(nativeRenderer)) {
+            renderer = nativeRenderer;
+        }
         String filter = nearestFiltering ? "Sharp" : "Smooth";
-        statusIndicator.setText(aspect + " | " + renderer + " | " + filter);
+        String aa = getAaLabel(antiAliasingMode);
+        String crt = crtShaderEnabled ? "CRT" : "NoCRT";
+        String internalScale = getInternalScaleLabel(resolutionScale);
+        String output = getEffectiveResolutionLabel();
+        String targetInfo = getRenderTargetInfo();
+        if (targetInfo == null || targetInfo.isEmpty()) {
+            targetInfo = "Surface:?x? Viewport:?x? InternalRT:?x? Preset:? Scale:?x";
+        }
+
+        if (debugModeEnabled) {
+            statusIndicator.setText(
+                    "Renderer: " + renderer + "\n" +
+                    "Aspect: " + aspect + "   Filter: " + filter + "   " + aa + "   " + crt + "\n" +
+                    "Resolution: " + output + "\n" +
+                    targetInfo
+            );
+        } else {
+            statusIndicator.setText("v" + appVersion + " | " + renderer + " | " + output);
+        }
+    }
+
+    private String getAaLabel(int mode) {
+        if (mode == 1) return "AA-L";
+        if (mode == 2) return "AA-H";
+        return "AA-Off";
+    }
+
+    private String getResolutionPresetLabel(int presetHeight) {
+        if (presetHeight == 720) return "720p";
+        if (presetHeight == 1080) return "1080p";
+        if (presetHeight == 1440) return "1440p";
+        if (presetHeight == 2160) return "2160p";
+        return "Auto";
+    }
+
+    private String getInternalScaleLabel(int scale) {
+        if (scale <= 0) return "Auto";
+        return scale + "x";
+    }
+
+    private String getEffectiveResolutionLabel() {
+        if (!isHardwareRendererSelected()) {
+            return "1x (Software)";
+        }
+        if (resolutionScale == 3) return "3x (720p)";
+        if (resolutionScale == 5) return "5x (1080p)";
+        if (resolutionScale == 6) return "6x (1440p)";
+        if (resolutionScale == 9) return "9x (4K)";
+        if (resolutionScale <= 0) return "Auto";
+        return resolutionScale + "x";
     }
     
     private void showStatusToast(String message) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        Toast toast = Toast.makeText(this, message, Toast.LENGTH_SHORT);
+        View toastView = toast.getView();
+        if (toastView != null) {
+            TextView messageView = toastView.findViewById(android.R.id.message);
+            if (messageView != null) {
+                messageView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+            }
+        }
+        toast.show();
     }
     
     private void updateButtonLabels() {
         // Update aspect ratio button
-        aspectRatioButton.setText(aspectRatio16by9 ? "16:9" : "4:3");
+        if (aspectRatioButton != null) {
+            aspectRatioButton.setText("📺");
+        }
         
         // Update renderer button
-        rendererButton.setText(currentRenderer == RENDERER_OPENGL_ES ? "OpenGL" : "Soft");
+        if (rendererButton != null) {
+            rendererButton.setText("🎮");
+        }
         
         // Update filtering button
-        filteringButton.setText(nearestFiltering ? "Sharp" : "Smooth");
+        if (filteringButton != null) {
+            filteringButton.setText("🔍");
+        }
+
+        // Update anti-aliasing button
+        if (aaButton != null) {
+            aaButton.setText("⚙");
+        }
+
+        // Update CRT and scale buttons
+        if (crtButton != null) {
+            crtButton.setText(crtShaderEnabled ? "📺" : "⬜");
+        }
+        if (scaleButton != null) {
+            scaleButton.setText(getEffectiveResolutionLabel());
+        }
     }
     
     private void startFpsCounter() {
@@ -380,12 +854,15 @@ public class EmulatorActivity extends AppCompatActivity {
                 if (lastFpsTime > 0) {
                     long elapsed = now - lastFpsTime;
                     if (elapsed > 0) {
-                        int fps = (int)(frameCount * 1000 / elapsed);
-                        fpsCounter.setText("FPS: " + fps);
+                        int renderedFrames = consumeRenderedFrames();
+                        int fps = (int)(renderedFrames * 1000L / elapsed);
+                        fpsCounter.setText("FPS " + fps);
+                        if (debugModeEnabled) {
+                            updateStatusIndicator();
+                        }
                     }
                 }
                 lastFpsTime = now;
-                frameCount = 0;
                 fpsHandler.postDelayed(this, 1000);
             }
         };
@@ -424,12 +901,33 @@ public class EmulatorActivity extends AppCompatActivity {
             menuVisible = false;
         }
     }
+    
+    private void toggleDebugMode() {
+        debugModeEnabled = !debugModeEnabled;
+        applyDebugModeUi();
+        if (debugModeEnabled) {
+            updateStatusIndicator();
+        }
+    }
+
+    private void applyDebugModeUi() {
+        if (fpsCounter != null) {
+            fpsCounter.setVisibility(debugModeEnabled ? View.VISIBLE : View.GONE);
+        }
+        if (statusIndicator != null) {
+            statusIndicator.setVisibility(debugModeEnabled ? View.VISIBLE : View.GONE);
+        }
+        if (debugToggleButton != null) {
+            debugToggleButton.setText(debugModeEnabled ? "Debug: ON" : "Debug: OFF");
+        }
+    }
 
     private void openLibraryGamePickerForStartup() {
-        String libraryPath = getSavedLibraryFolder();
-        if (isValidDirectoryPath(libraryPath)) {
+        String libraryPath = EmulatorPathStore.getSavedLibraryFolder(this);
+        if (EmulatorPathStore.isValidDirectoryPath(libraryPath)) {
             Intent intent = new Intent(this, GameLibraryActivity.class);
             intent.putExtra(GameLibraryActivity.EXTRA_LIBRARY_PATH, libraryPath);
+            intent.putExtra(GameLibraryActivity.EXTRA_PICK_MODE, true);
             startActivityForResult(intent, REQUEST_LIBRARY_GAME_PICKER);
         } else {
             initializeEmulator(null);
@@ -455,8 +953,8 @@ public class EmulatorActivity extends AppCompatActivity {
                 Uri uri = data.getData();
                 if (uri != null) {
                     String biosPath = uri.getPath();
-                    if (isValidFilePath(biosPath)) {
-                        saveBiosPath(biosPath);
+                    if (EmulatorPathStore.isValidFilePath(biosPath)) {
+                        EmulatorPathStore.saveBiosPath(this, biosPath);
                         initializeEmulator(null);
                         return;
                     }
@@ -472,7 +970,7 @@ public class EmulatorActivity extends AppCompatActivity {
                 Uri uri = data.getData();
                 if (uri != null) {
                     mGamePath = uri.getPath();
-                    saveLastGamePath(mGamePath);
+                    EmulatorPathStore.saveLastGamePath(this, mGamePath);
                     initializeEmulator(mGamePath);
                     return;
                 }
@@ -487,9 +985,9 @@ public class EmulatorActivity extends AppCompatActivity {
                 Uri uri = data.getData();
                 if (uri != null) {
                     String gamePath = uri.getPath();
-                    if (isSupportedCdPath(gamePath)) {
+                    if (EmulatorPathStore.isSupportedCdPath(gamePath)) {
                         mGamePath = gamePath;
-                        saveLastGamePath(gamePath);
+                        EmulatorPathStore.saveLastGamePath(this, gamePath);
                         initializeEmulator(mGamePath);
                         return;
                     }
@@ -504,9 +1002,9 @@ public class EmulatorActivity extends AppCompatActivity {
                 Uri uri = data.getData();
                 if (uri != null) {
                     String cdPath = uri.getPath();
-                    if (isSupportedCdPath(cdPath)) {
+                    if (EmulatorPathStore.isSupportedCdPath(cdPath)) {
                         mGamePath = cdPath;
-                        saveLastGamePath(cdPath);
+                        EmulatorPathStore.saveLastGamePath(this, cdPath);
                         performHardReset(cdPath);
                         Toast.makeText(this, R.string.cd_loaded, Toast.LENGTH_SHORT).show();
                     } else {
@@ -519,50 +1017,6 @@ public class EmulatorActivity extends AppCompatActivity {
         }
     }
 
-    private String getSavedBiosPath() {
-        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
-        return prefs.getString(SettingsActivity.KEY_BIOS_PATH, "");
-    }
-
-    private void saveBiosPath(String biosPath) {
-        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
-        prefs.edit().putString(SettingsActivity.KEY_BIOS_PATH, biosPath).apply();
-    }
-
-    private String getSavedLastGamePath() {
-        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
-        return prefs.getString(SettingsActivity.KEY_LAST_GAME_PATH, "");
-    }
-
-    private String getSavedLibraryFolder() {
-        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
-        return prefs.getString(SettingsActivity.KEY_LIBRARY_FOLDER, "");
-    }
-
-    private void saveLastGamePath(String gamePath) {
-        if (gamePath == null || gamePath.isEmpty()) {
-            return;
-        }
-        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
-        prefs.edit().putString(SettingsActivity.KEY_LAST_GAME_PATH, gamePath).apply();
-    }
-
-    private boolean isValidFilePath(String path) {
-        return path != null && !path.isEmpty() && new File(path).isFile();
-    }
-
-    private boolean isSupportedCdPath(String path) {
-        if (!isValidFilePath(path)) {
-            return false;
-        }
-        String lower = path.toLowerCase();
-        return lower.endsWith(".cue") || lower.endsWith(".bin") || lower.endsWith(".iso") || lower.endsWith(".chd");
-    }
-
-    private boolean isValidDirectoryPath(String path) {
-        return path != null && !path.isEmpty() && new File(path).isDirectory();
-    }
-
     private void performHardReset() {
         performHardReset(null);
     }
@@ -571,73 +1025,54 @@ public class EmulatorActivity extends AppCompatActivity {
         stopAudioPlayback();
         shutdownEmulator();
 
-        String biosPath = getSavedBiosPath();
-        if (!isValidFilePath(biosPath)) {
+        String biosPath = EmulatorPathStore.getSavedBiosPath(this);
+        if (!EmulatorPathStore.isValidFilePath(biosPath)) {
             Toast.makeText(this, R.string.bios_required, Toast.LENGTH_SHORT).show();
             openBiosBrowser();
             return;
         }
 
         String gameToLoad = preferredGamePath;
-        if (!isSupportedCdPath(gameToLoad)) {
+        if (!EmulatorPathStore.isSupportedCdPath(gameToLoad)) {
             gameToLoad = mGamePath;
         }
-        if (!isSupportedCdPath(gameToLoad)) {
-            String lastGamePath = getSavedLastGamePath();
-            if (isSupportedCdPath(lastGamePath)) {
+        if (!EmulatorPathStore.isSupportedCdPath(gameToLoad)) {
+            String lastGamePath = EmulatorPathStore.getSavedLastGamePath(this);
+            if (EmulatorPathStore.isSupportedCdPath(lastGamePath)) {
                 gameToLoad = lastGamePath;
                 mGamePath = lastGamePath;
             }
         }
 
-        if (isSupportedCdPath(gameToLoad)) {
+        if (EmulatorPathStore.isSupportedCdPath(gameToLoad)) {
             mGamePath = gameToLoad;
         }
 
         initializeEmulator(gameToLoad);
     }
 
-    private boolean isGameControllerEvent(KeyEvent event) {
-        int source = event.getSource();
-        return ((source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD)
-                || ((source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK)
-                || ((source & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD);
-    }
-
-    private Integer mapKeyCodeToInputButton(int keyCode) {
-        int mapped = ControllerMappingManager.getMappedButtonForKeyCode(this, keyCode);
-        if (mapped < 0) {
-            return null;
-        }
-        return mapped;
-    }
-
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (isGameControllerEvent(event)) {
-            Integer button = mapKeyCodeToInputButton(keyCode);
-            if (button != null) {
-                setInputState(button, true);
-                return true;
-            }
+        Integer button = EmulatorInputRouter.resolveMappedButton(this, keyCode, event);
+        if (button != null) {
+            setInputState(button, true);
+            return true;
         }
         return super.onKeyDown(keyCode, event);
     }
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        if (isGameControllerEvent(event)) {
-            Integer button = mapKeyCodeToInputButton(keyCode);
-            if (button != null) {
-                setInputState(button, false);
-                return true;
-            }
+        Integer button = EmulatorInputRouter.resolveMappedButton(this, keyCode, event);
+        if (button != null) {
+            setInputState(button, false);
+            return true;
         }
         return super.onKeyUp(keyCode, event);
     }
     
     private void initializeEmulator(String gamePath) {
-        String biosPath = getSavedBiosPath();
+        String biosPath = EmulatorPathStore.getSavedBiosPath(this);
 
         // Apply region setting before init
         SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
@@ -701,87 +1136,11 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private void startAudioPlayback() {
-        if (audioRunning) {
-            return;
-        }
-
-        int sampleRate = 44100;
-        int minBufferSize = AudioTrack.getMinBufferSize(
-                sampleRate,
-                AudioFormat.CHANNEL_OUT_STEREO,
-                AudioFormat.ENCODING_PCM_16BIT);
-
-        if (minBufferSize <= 0) {
-            return;
-        }
-
-        audioTrack = new AudioTrack(
-                new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_GAME)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build(),
-                new AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(sampleRate)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                        .build(),
-                Math.max(minBufferSize * 8, sampleRate),
-                AudioTrack.MODE_STREAM,
-                AudioManager.AUDIO_SESSION_ID_GENERATE);
-
-        audioTrack.play();
-        audioRunning = true;
-
-        audioThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
-
-                int[] packedFrames = new int[4096];
-                short[] pcm = new short[packedFrames.length * 2];
-
-                while (audioRunning) {
-                    int frameCount = drainAudioFrames(packedFrames);
-                    if (frameCount > 0) {
-                        for (int i = 0; i < frameCount; i++) {
-                            int sample = packedFrames[i];
-                            pcm[i * 2] = (short) (sample & 0xFFFF);
-                            pcm[i * 2 + 1] = (short) ((sample >> 16) & 0xFFFF);
-                        }
-                        audioTrack.write(pcm, 0, frameCount * 2);
-                    } else {
-                        // Short busy-wait to avoid Android's coarse sleep granularity
-                        try {
-                            Thread.sleep(0, 500000); // 0.5ms
-                        } catch (InterruptedException ignored) {
-                        }
-                    }
-                }
-            }
-        }, "4DO-AudioThread");
-        audioThread.start();
+        audioEngine.start(this::drainAudioFrames);
     }
 
     private void stopAudioPlayback() {
-        audioRunning = false;
-
-        if (audioThread != null) {
-            try {
-                audioThread.join(250);
-            } catch (InterruptedException ignored) {
-            }
-            audioThread = null;
-        }
-
-        if (audioTrack != null) {
-            try {
-                audioTrack.pause();
-                audioTrack.flush();
-                audioTrack.release();
-            } catch (Exception ignored) {
-            }
-            audioTrack = null;
-        }
+        audioEngine.stop();
     }
 
     @Override
@@ -854,6 +1213,19 @@ public class EmulatorActivity extends AppCompatActivity {
     private native String getRendererName();
     private native void setAspectRatio(boolean wide);
     private native boolean getAspectRatio();
+    private native void setCrtShaderEnabled(boolean enabled);
+    private native boolean getCrtShaderEnabled();
+    private native void setResolutionScale(int scale);
+    private native int getResolutionScale();
+    private native void setAntiAliasingMode(int mode);
+    private native int getAntiAliasingMode();
+    private native void setOutputResolutionPreset(int targetHeight);
+    private native int getOutputResolutionPreset();
+    private native String getRenderTargetInfo();
+    private native void setFlipVertical(boolean flip);
+    private native void setFlipX(boolean flip);
+    private native void setFlipY(boolean flip);
+    private native int consumeRenderedFrames();
     
     // Renderer type constants
     public static final int RENDERER_AUTO = 0;

@@ -2,9 +2,9 @@
  * 4DO Native Core - Main Emulator Coordinator
  * Integrates all native subsystems into a unified emulation engine.
  *
- * This replaces the previous approach of calling libopera C functions
+ * This replaces the previous approach of calling legacy C backend functions
  * directly from emulator_core.cpp.  All hardware-related state is now
- * owned by FourdoCore; libopera is used internally as the hardware-
+ * owned by FourdoCore; the legacy backend is used internally as the hardware-
  * emulation backend until each component is rewritten natively.
  */
 
@@ -31,7 +31,7 @@ namespace core {
  *
  * Owns all subsystem instances and drives the emulation loop.
  * The JNI bridge (jni_bridge.cpp / emulator_core.cpp) talks to
- * this class rather than to libopera directly.
+ * this class rather than to the legacy backend directly.
  */
 class FourdoCore {
 public:

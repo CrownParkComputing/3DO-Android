@@ -3,6 +3,9 @@
 # Complete build script for 4DO Android application
 set -e  # Exit on any error
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+
 # Colors for output
 RED='[0;31m'
 GREEN='[0;32m'
@@ -22,6 +25,32 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+resolve_java_home() {
+    if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+        print_status "Using existing JAVA_HOME: $JAVA_HOME"
+        return
+    fi
+
+    local candidates=(
+        "/c/Program Files/Java/latest"
+        "/c/Program Files/Java/jdk-25.0.2"
+        "/c/Program Files/Android/Android Studio/jbr"
+    )
+
+    local candidate
+    for candidate in "${candidates[@]}"; do
+        if [ -x "$candidate/bin/java" ]; then
+            export JAVA_HOME="$candidate"
+            print_status "Using detected JAVA_HOME: $JAVA_HOME"
+            return
+        fi
+    done
+
+    print_error "No valid JAVA_HOME found"
+    print_error "Set JAVA_HOME to a JDK root directory containing bin/java"
+    exit 1
+}
+
 # Check if Android SDK is available
 if [ -z "$ANDROID_HOME" ]; then
     print_error "ANDROID_HOME environment variable is not set"
@@ -31,22 +60,22 @@ fi
 
 # Check if required tools are available
 check_tool() {
-    if ! command -v $1 &> /dev/null; then
+    if ! command -v "$1" &> /dev/null; then
         print_error "Required tool '$1' is not installed or not in PATH"
         exit 1
     fi
 }
 
-check_tool "gradle"
 check_tool "adb"
+resolve_java_home
 
 # Clean previous builds
 print_status "Cleaning previous build artifacts..."
-cd "$(dirname "$0")/4DO-Android" && ./gradlew clean
+./gradlew clean
 
 # Build debug APK
 print_status "Building debug APK..."
-cd "$(dirname "$0")/4DO-Android" && ./gradlew assembleDebug
+./gradlew assembleDebug
 
 # Check if build was successful
 if [ $? -eq 0 ]; then

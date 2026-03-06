@@ -46,6 +46,10 @@ void SoftwareRenderer::cleanup() {
         return;
     }
     
+    if (m_window != nullptr) {
+        ANativeWindow_setBuffersGeometry(m_window, 0, 0, 0);
+    }
+
     // Note: We don't release the window here as it's managed externally
     // The window is passed to us and we just hold a reference
     m_window = nullptr;
@@ -112,15 +116,19 @@ void SoftwareRenderer::renderFrame(const void* pixels, int width, int height) {
     
     // Copy and scale pixels (nearest neighbor for sharp, bilinear would be smooth)
     for (int dy = 0; dy < dstHeight; dy++) {
-        int sy = static_cast<int>(dy * scaleY);
+        int sy = m_flipY ? static_cast<int>((dstHeight - 1 - dy) * scaleY)
+                         : static_cast<int>(dy * scaleY);
         if (sy >= height) sy = height - 1;
+        if (sy < 0) sy = 0;
         
         uint8_t* dstRow = dst + (static_cast<size_t>(dstY + dy) * dstStrideBytes) + (dstX * 2);
         const uint8_t* srcRow = src + (static_cast<size_t>(sy) * width * 2);
         
         for (int dx = 0; dx < dstWidth; dx++) {
-            int sx = static_cast<int>(dx * scaleX);
+            int sx = m_flipX ? static_cast<int>((dstWidth - 1 - dx) * scaleX)
+                             : static_cast<int>(dx * scaleX);
             if (sx >= width) sx = width - 1;
+            if (sx < 0) sx = 0;
             
             // Copy 2 bytes (RGB565 pixel)
             dstRow[dx * 2] = srcRow[sx * 2];
@@ -139,4 +147,30 @@ void SoftwareRenderer::setFiltering(bool nearest) {
 void SoftwareRenderer::setAspectRatio(float ratio) {
     // Software renderer doesn't support aspect ratio adjustment - ignored
     m_aspectRatio = ratio;
+}
+
+void SoftwareRenderer::setCrtShaderEnabled(bool enabled) {
+    (void)enabled;
+}
+
+void SoftwareRenderer::setResolutionScale(int scale) {
+    (void)scale;
+}
+
+void SoftwareRenderer::setAntiAliasingMode(int mode) {
+    (void)mode;
+}
+
+void SoftwareRenderer::setOutputResolutionPreset(int targetHeight) {
+    (void)targetHeight;
+}
+
+void SoftwareRenderer::setFlipVertical(bool enabled) {
+    m_flipX = enabled;
+    m_flipY = enabled;
+}
+
+void SoftwareRenderer::setFlip(bool flipX, bool flipY) {
+    m_flipX = flipX;
+    m_flipY = flipY;
 }
