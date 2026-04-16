@@ -47,7 +47,8 @@ final class EmulatorPathStore {
             return false;
         }
         String lower = path.toLowerCase();
-        return lower.endsWith(".cue") || lower.endsWith(".bin") || lower.endsWith(".iso") || lower.endsWith(".chd");
+        // CUE files are the master for CUE/BIN pairs, exclude BIN to avoid duplicates
+        return lower.endsWith(".cue") || lower.endsWith(".iso") || lower.endsWith(".chd");
     }
 
     static boolean isValidDirectoryPath(String path) {

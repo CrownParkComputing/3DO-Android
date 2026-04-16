@@ -19,6 +19,7 @@
             android:name=".SplashActivity"
             android:exported="true"
             android:screenOrientation="landscape"
+            android:theme="@style/SplashTheme"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -79,6 +80,13 @@
 
         <activity
             android:name=".SetupWizardActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode">
+        </activity>
+
+        <activity
+            android:name=".DownloadSourceActivity"
             android:exported="false"
             android:screenOrientation="landscape"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode">

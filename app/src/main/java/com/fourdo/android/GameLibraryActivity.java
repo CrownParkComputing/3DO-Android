@@ -1,4 +1,3 @@
-package com.fourdo.android;
 
 import android.app.AlertDialog;
 import android.content.Intent;
@@ -47,6 +46,9 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
     private ImageButton settingsButton;
     private ImageButton searchButton;
     private ImageButton viewToggleBtn;
+    private ImageButton downloadButton;
+    
+    private static final String DOWNLOAD_URL = "https://lolroms.com/Panasonic%20-%203DO";
 
     private final List<GameItem> gameItems = new ArrayList<>();
     private GameGridAdapter adapter;
@@ -90,6 +92,10 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         settingsButton = findViewById(R.id.settings_button);
         searchButton = findViewById(R.id.search_button);
         viewToggleBtn = findViewById(R.id.view_toggle_button);
+        downloadButton = findViewById(R.id.download_button);
+        
+        // Download button click handler
+        downloadButton.setOnClickListener(v -> showDownloadDialog());
 
         igdbService = IgdbService.getInstance(this);
 
@@ -160,8 +166,68 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         loadGames(root);
     }
     
+    private void showDownloadDialog() {
+        Intent intent = new Intent(this, DownloadSourceActivity.class);
+        startActivity(intent);
+    }
+    
+    private void autoExtractRoms(File libraryFolder) {
+        File[] archives = libraryFolder.listFiles((dir, name) -> {
+            String lower = name.toLowerCase();
+            return lower.endsWith(".zip") || lower.endsWith(".7z") || lower.endsWith(".rar");
+        });
+        
+        if (archives == null || archives.length == 0) {
+            return;
+        }
+        
+        for (File archive : archives) {
+            extractArchive(archive, libraryFolder);
+        }
+    }
+    
+    private void extractArchive(File archive, File outputDir) {
+        log("Extracting: " + archive.getName());
+        
+        try {
+            String lower = archive.getName().toLowerCase();
+            ProcessBuilder pb;
+            
+            if (lower.endsWith(".7z")) {
+                pb = new ProcessBuilder("7z", "x", "-y", "-o" + outputDir.getAbsolutePath(), archive.getAbsolutePath());
+            } else if (lower.endsWith(".zip")) {
+                pb = new ProcessBuilder("7z", "x", "-y", "-o" + outputDir.getAbsolutePath(), archive.getAbsolutePath());
+            } else {
+                log("Unknown archive format: " + archive.getName());
+                return;
+            }
+            
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            int result = process.waitFor();
+            
+            if (result == 0) {
+                log("Extraction successful: " + archive.getName());
+                // Delete archive after successful extraction
+                archive.delete();
+            } else {
+                log("Extraction failed for: " + archive.getName());
+            }
+        } catch (Exception e) {
+            log("Error extracting archive: " + e.getMessage());
+        }
+    }
+    
     @Override
     protected void onResume() {
+        // Auto-extract any new ROM archives
+        if (libraryPath != null && !libraryPath.isEmpty()) {
+            File libraryFolder = new File(libraryPath);
+            if (libraryFolder.isDirectory()) {
+                autoExtractRoms(libraryFolder);
+            }
+        }
+        
         super.onResume();
         
         // Reload view style in case it changed in settings
@@ -274,7 +340,9 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
 
     private boolean isSupportedGameFile(File file) {
         String name = file.getName().toLowerCase();
-        return name.endsWith(".cue") || name.endsWith(".iso") || name.endsWith(".chd") || name.endsWith(".bin");
+        // CUE files are the master for CUE/BIN pairs, exclude BIN to avoid duplicates
+        // CHD and ISO are standalone formats
+        return name.endsWith(".cue") || name.endsWith(".iso") || name.endsWith(".chd");
     }
 
     private String getGameName(String fileName) {

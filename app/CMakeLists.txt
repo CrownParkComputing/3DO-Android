@@ -27,6 +27,12 @@ find_library(
     GLESv3
 )
 
+# Find zlib for CHD support
+find_library(
+    zlib-lib
+    z
+)
+
 # Add all source files
 add_library(
     native-lib
@@ -91,4 +97,5 @@ target_link_libraries(
     ${android-lib}
     ${egl-lib}
     ${gles-lib}
+    ${zlib-lib}
 )

@@ -15,6 +15,16 @@
         android:background="#252547">
 
         <ImageButton
+            android:id="@+id/download_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@android:drawable/stat_sys_download"
+            android:background="?android:attr/selectableItemBackground"
+            android:contentDescription="Download Roms"
+            android:scaleType="centerInside"
+            android:padding="8dp" />
+
+        <ImageButton
             android:id="@+id/view_toggle_button"
             android:layout_width="48dp"
             android:layout_height="48dp"
@@ -22,7 +32,8 @@
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="Change View"
             android:scaleType="centerInside"
-            android:padding="8dp" />
+            android:padding="8dp"
+            android:layout_marginStart="4dp" />
 
         <ImageButton
             android:id="@+id/search_button"

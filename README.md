@@ -1,34 +1,51 @@
-# 4DO Android Port
+# 4DO Android
 
-This is an Android port of the 4DO 3DO emulator using SDL2 for rendering and a Java GUI overlay.
+Android port of 4DO with a Java UI and native emulator/rendering code.
 
-## Building
+## Requirements
 
-1. Install Android Studio and the Android SDK
-2. Install CMake and the NDK
-3. Open the project in Android Studio
-4. Build and run the project
+- Android SDK
+- Android NDK
+- CMake
+- A working JDK for Gradle
 
-### Bash build scripts (Windows Git Bash)
+`JAVA_HOME` should point to a real JDK root containing `bin/java`. If it is unset or invalid, the local build scripts try common locations such as Android Studio JBR.
 
-- `build_apk.sh` and `build_complete.sh` automatically detect a valid JDK when `JAVA_HOME` is missing or invalid.
-- Preferred detection order:
-	- `/c/Program Files/Java/latest`
-	- `/c/Program Files/Java/jdk-25.0.2`
-	- `/c/Program Files/Android/Android Studio/jbr`
-- If none are found, set `JAVA_HOME` manually to a JDK root containing `bin/java`.
+## Local Build Commands
+
+Windows PowerShell or Command Prompt:
+
+```bat
+build.bat
+build.bat clean
+build.bat debug
+build.bat release
+build.bat lint
+build.bat test
+build.bat install
+```
+
+Git Bash:
+
+```bash
+./build.sh
+./build.sh clean
+./build.sh debug
+./build.sh release
+./build.sh lint
+./build.sh test
+./build.sh install
+```
+
+Both entry points delegate to the maintained scripts under `scripts/` and run the Gradle wrapper with `--no-daemon`.
+
+## CI
+
+GitHub Actions build configuration lives in `.github/workflows/android-build.yml`.
 
 ## Project Structure
 
-- `app/src/main/java/com/fourdo/android/` - Java source code
-- `app/src/main/cpp/` - Native C++ source code
+- `app/src/main/java/com/fourdo/android/` - Java source
+- `app/cpp/` - Native code
 - `app/src/main/res/` - Android resources
-- `app/CMakeLists.txt` - CMake build configuration
-
-## Native Code
-
-The native code uses SDL2 for rendering and handles the 3DO emulation core.
-
-## Java GUI
-
-The Java GUI provides a simple interface for launching the emulator and managing settings.
+- `scripts/` - Local helper scripts

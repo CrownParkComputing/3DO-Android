@@ -18,8 +18,13 @@ local.properties
 # Logs
 *.log
 /build/logs/
+hs_err_pid*.log
 
 # OS files
 .DS_Store
 Thumbs.db
 app/app
+
+# Local repo artifacts
+_codeql_detected_source_root
+app/*.png

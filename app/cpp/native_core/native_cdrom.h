@@ -6,6 +6,7 @@
  * - Read-ahead buffering for sequential streaming
  * - Sector cache for repeated reads
  * - Async prefetch support
+ * - CHD (Compressed Hunk Data) format support
  */
 
 #ifndef FOURDO_NATIVE_CDROM_H
@@ -22,13 +23,15 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <vector>
+#include <zlib.h>
 
 namespace fourdo {
 namespace core {
 
 /**
  * CdImage - Optimized CD-ROM Image Handler
- * Supports: ISO, BIN/CUE with read-ahead caching
+ * Supports: ISO, BIN/CUE, CHD with read-ahead caching
  */
 class CdImage {
     // CD-ROM constants
@@ -40,6 +43,21 @@ class CdImage {
     static constexpr u32 CACHE_SECTORS = 64;       // 64 sectors = 128KB cache
     static constexpr u32 READAHEAD_SECTORS = 16;   // Prefetch 16 sectors ahead
     static constexpr u32 CACHE_SIZE = CACHE_SECTORS * SECTOR_SIZE;
+    
+    // CHD header structure
+    struct CHDHeader {
+        char magic[8];           // "MComprHD"
+        u32 version;             // CHD version
+        u32 header_len;         // Header length
+        u32 compression;        // Compression type
+        u32 hunksize;           // Hunk size in bytes
+        u32 totalhunks;         // Total number of hunks
+        u32 cylinders;          // cylinders (for CD-ROM: 1)
+        u32 sectors;            // sectors per cylinder
+        u32 sectorbytes;        // bytes per sector
+        char md5hash[16];       // MD5 hash
+        char parentmd5hash[16]; // Parent MD5 (if differs)
+    };
     
     enum class ImageType {
         NONE,
@@ -63,6 +81,14 @@ class CdImage {
     u32 m_sector_offset;       // Offset within raw sector to data
     u32 m_current_sector;
     
+    // CHD-specific members
+    std::unique_ptr<u32[]> m_chd_map;           // LBA to hunk mapping
+    std::unique_ptr<u8[]> m_chd_hunk_buffer;    // Decompressed hunk buffer
+    u32 m_chd_hunksize;
+    u32 m_chd_totalhunks;
+    std::unique_ptr<u8[]> m_chd_compressed;     // Compression buffer
+    size_t m_chd_compressed_size;
+    
     // RAM preload for images under 900MB
     std::unique_ptr<u8[]> m_ram_data;
     size_t m_ram_size;
@@ -84,7 +110,11 @@ class CdImage {
 public:
     CdImage() : m_type(ImageType::NONE), m_total_sectors(0), 
                 m_sector_size(SECTOR_SIZE), m_sector_offset(0),
-                m_current_sector(0), m_ram_data(nullptr), m_ram_size(0),
+                m_current_sector(0), 
+                m_chd_map(nullptr), m_chd_hunk_buffer(nullptr),
+                m_chd_hunksize(0), m_chd_totalhunks(0),
+                m_chd_compressed(nullptr), m_chd_compressed_size(0),
+                m_ram_data(nullptr), m_ram_size(0),
                 m_cache_hits(0), m_cache_misses(0),
                 m_readahead_start(0), m_readahead_count(0),
                 m_last_read_sector(0xFFFFFFFF), m_sequential_count(0) {
@@ -120,9 +150,7 @@ public:
                 m_sector_size = RAW_SECTOR_SIZE;
                 m_sector_offset = 16;  // Mode 1 data offset
             } else if (ext == ".chd") {
-                m_type = ImageType::CHD;
-                LOGE("CHD format not yet supported");
-                return false;
+                return open_chd_file(path);
             } else if (ext == ".cue") {
                 // Parse CUE file to get BIN path
                 return open_from_cue(path);
@@ -172,6 +200,10 @@ public:
         }
         m_ram_data.reset();
         m_ram_size = 0;
+        m_chd_map.reset();
+        m_chd_hunk_buffer.reset();
+        m_chd_compressed.reset();
+        m_chd_compressed_size = 0;
         m_type = ImageType::NONE;
         m_total_sectors = 0;
         m_current_sector = 0;
@@ -202,6 +234,11 @@ public:
             }
             memset(buffer, 0, SECTOR_SIZE);
             return false;
+        }
+        
+        // CHD read
+        if (m_type == ImageType::CHD) {
+            return read_chd_sector(sector, buffer);
         }
         
         // Check cache first
@@ -302,6 +339,160 @@ public:
     }
 
 private:
+    // ==================== CHD SUPPORT ====================
+    
+    /**
+     * Open and parse CHD file
+     */
+    bool open_chd_file(const std::string& path) {
+        std::ifstream file(path, std::ios::binary);
+        if (!file) {
+            LOGE("Failed to open CHD file: %s", path.c_str());
+            return false;
+        }
+        
+        CHDHeader header;
+        file.read(reinterpret_cast<char*>(&header), sizeof(header));
+        
+        // Verify magic
+        if (strncmp(header.magic, "MComprHD", 8) != 0) {
+            LOGE("Invalid CHD magic bytes");
+            return false;
+        }
+        
+        // Check supported versions
+        if (header.version < 1 || header.version > 5) {
+            LOGE("Unsupported CHD version: %u", header.version);
+            return false;
+        }
+        
+        // Only support uncompressed or zlib compressed CHD
+        if (header.compression > 2) {
+            LOGE("Unsupported CHD compression: %u", header.compression);
+            return false;
+        }
+        
+        // Verify sector size
+        if (header.sectorbytes != SECTOR_SIZE) {
+            LOGW("CHD sector size %u != expected %u", header.sectorbytes, SECTOR_SIZE);
+        }
+        
+        m_sector_size = header.sectorbytes;
+        m_total_sectors = header.cylinders * header.sectors;
+        m_chd_hunksize = header.hunksize;
+        m_chd_totalhunks = header.totalhunks;
+        
+        // Allocate buffers
+        m_chd_hunk_buffer = std::make_unique<u8[]>(m_chd_hunksize);
+        
+        // Allocate compression buffer (max 2x hunk size for safety)
+        m_chd_compressed_size = m_chd_hunksize * 2;
+        m_chd_compressed = std::make_unique<u8[]>(m_chd_compressed_size);
+        
+        // Read map
+        m_chd_map = std::make_unique<u32[]>(m_chd_totalhunks);
+        file.read(reinterpret_cast<char*>(m_chd_map.get()), sizeof(u32) * m_chd_totalhunks);
+        
+        // Store file for later hunk reading
+        file.close();
+        m_file.open(path, std::ios::binary);
+        
+        // Calculate data offset (after header and map)
+        size_t data_offset = sizeof(CHDHeader) + sizeof(u32) * m_chd_totalhunks;
+        m_file.seekg(data_offset, std::ios::beg);
+        
+        LOGI("CHD opened: %s (version=%u, compression=%u, sectors=%u, hunksize=%u)", 
+             path.c_str(), header.version, header.compression, m_total_sectors, m_chd_hunksize);
+        
+        return true;
+    }
+    
+    /**
+     * Read a sector from CHD file
+     */
+    bool read_chd_sector(u32 sector, void* buffer) {
+        if (!m_chd_map || !m_chd_hunk_buffer) {
+            memset(buffer, 0, SECTOR_SIZE);
+            return false;
+        }
+        
+        // Calculate which hunk contains this sector
+        u32 sectors_per_hunk = m_chd_hunksize / SECTOR_SIZE;
+        u32 hunk_index = sector / sectors_per_hunk;
+        u32 sector_in_hunk = sector % sectors_per_hunk;
+        
+        if (hunk_index >= m_chd_totalhunks) {
+            LOGW("CHD sector %u beyond hunk count %u", sector, m_total_sectors);
+            memset(buffer, 0, SECTOR_SIZE);
+            return false;
+        }
+        
+        // Decompress the hunk if needed
+        if (!decompress_chd_hunk(hunk_index)) {
+            memset(buffer, 0, SECTOR_SIZE);
+            return false;
+        }
+        
+        // Copy sector from hunk buffer
+        size_t offset = sector_in_hunk * SECTOR_SIZE;
+        memcpy(buffer, m_chd_hunk_buffer.get() + offset, SECTOR_SIZE);
+        return true;
+    }
+    
+    /**
+     * Decompress a CHD hunk
+     */
+    bool decompress_chd_hunk(u32 hunk_index) {
+        // Map entry: 0xFFFFFFFF = empty/unallocated
+        u32 map_entry = m_chd_map[hunk_index];
+        
+        if (map_entry == 0xFFFFFFFF) {
+            // Empty sector - fill with zeros
+            memset(m_chd_hunk_buffer.get(), 0, m_chd_hunksize);
+            return true;
+        }
+        
+        // Seek to hunk data in file
+        size_t data_offset = sizeof(CHDHeader) + sizeof(u32) * m_chd_totalhunks;
+        size_t hunk_offset = data_offset + static_cast<size_t>(map_entry) * m_chd_hunksize;
+        
+        m_file.clear();
+        m_file.seekg(hunk_offset, std::ios::beg);
+        
+        // Read compressed length (stored as u32 before data)
+        u32 compressed_len;
+        m_file.read(reinterpret_cast<char*>(&compressed_len), sizeof(u32));
+        
+        if (compressed_len == m_chd_hunksize) {
+            // Uncompressed hunk
+            m_file.read(reinterpret_cast<char*>(m_chd_hunk_buffer.get()), m_chd_hunksize);
+        } else {
+            // Compressed hunk - read into buffer
+            if (compressed_len > m_chd_compressed_size) {
+                m_chd_compressed_size = compressed_len;
+                m_chd_compressed = std::make_unique<u8[]>(m_chd_compressed_size);
+            }
+            
+            m_file.read(reinterpret_cast<char*>(m_chd_compressed.get()), compressed_len);
+            
+            // Decompress using zlib
+            uLongf dest_len = m_chd_hunksize;
+            int result = uncompress(
+                m_chd_hunk_buffer.get(), &dest_len,
+                m_chd_compressed.get(), compressed_len
+            );
+            
+            if (result != Z_OK) {
+                LOGE("CHD decompression failed: error %d", result);
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    // ==================== END CHD SUPPORT ====================
+    
     /**
      * Preload image to RAM for faster access
      */
