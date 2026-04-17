@@ -90,10 +90,18 @@ jobs:
     - name: Make Gradle wrapper executable
       run: chmod +x ./gradlew
 
+    - name: Materialize release keystore
+      run: |
+        printf '%s' '${{ secrets.KEYSTORE_BASE64 }}' | base64 --decode > release.keystore
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
     - name: Build Release APK
       run: ./gradlew --no-daemon assembleRelease
       env:
+        KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS || '4do-key' }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
     - name: Upload Release APK
@@ -112,6 +120,10 @@ jobs:
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Remove release keystore
+      if: always()
+      run: rm -f release.keystore
 
   cleanup-artifacts:
     if: ${{ always() && github.event_name != 'pull_request' && needs.ci.result == 'success' && (needs.release.result == 'success' || needs.release.result == 'skipped') }}

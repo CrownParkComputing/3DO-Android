@@ -1,5 +1,9 @@
 apply plugin: 'com.android.application'
 
+def localReleaseKeystore = file('../4do-release-key.keystore')
+def releaseKeystorePath = System.getenv('KEYSTORE_PATH')
+def releaseKeystoreFile = releaseKeystorePath ? file(releaseKeystorePath) : localReleaseKeystore
+
 android {
     namespace "com.fourdo.android"
     compileSdk 35
@@ -21,9 +25,9 @@ android {
 
     signingConfigs {
         release {
-            storeFile file('../4do-release-key.keystore')
+            storeFile releaseKeystoreFile.exists() ? releaseKeystoreFile : null
             storePassword System.getenv('KEYSTORE_PASSWORD') ?: 'android'
-            keyAlias '4do-key'
+            keyAlias System.getenv('KEY_ALIAS') ?: '4do-key'
             keyPassword System.getenv('KEY_PASSWORD') ?: 'android'
         }
     }

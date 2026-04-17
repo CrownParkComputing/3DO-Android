@@ -28,3 +28,10 @@ app/app
 # Local repo artifacts
 _codeql_detected_source_root
 app/*.png
+
+# Local signing artifacts
+4do-release-key.keystore
+*.keystore.backup.*
+
+# Local Gradle command output
+gradle_*.log
