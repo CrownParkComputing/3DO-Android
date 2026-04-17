@@ -170,3 +170,5 @@ target_link_libraries(
     chdr
     ${zlib-lib}
 )
+
+target_link_options(native-lib PRIVATE "-Wl,-z,max-page-size=16384")

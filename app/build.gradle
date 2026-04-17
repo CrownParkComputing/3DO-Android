@@ -12,13 +12,13 @@ android {
         applicationId "com.fourdo.android"
         minSdk 24
         targetSdk 35
-        versionCode 3
-        versionName "2.0.1"
+        versionCode 7
+        versionName "2.0.5"
 
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17 -frtti -fexceptions"
-                arguments "-DANDROID_STL=c++_shared"
+                arguments "-DANDROID_STL=c++_static"
             }
         }
     }
@@ -46,6 +46,12 @@ android {
         }
     }
 
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -54,6 +60,7 @@ android {
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.documentfile:documentfile:1.0.1'
     implementation 'com.google.android.material:material:1.11.0'
     // 7zip extraction support
     implementation 'org.apache.commons:commons-compress:1.25.0'

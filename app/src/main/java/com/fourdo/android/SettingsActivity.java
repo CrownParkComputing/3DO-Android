@@ -6,7 +6,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
@@ -109,7 +108,7 @@ public class SettingsActivity extends AppCompatActivity {
         selectBiosButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(SettingsActivity.this, FileBrowserActivity.class);
+                Intent intent = SafFileImporter.createOpenDocumentIntent();
                 startActivityForResult(intent, REQUEST_BIOS_PICKER);
             }
         });
@@ -117,8 +116,7 @@ public class SettingsActivity extends AppCompatActivity {
         selectLibraryButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(SettingsActivity.this, FileBrowserActivity.class);
-                intent.putExtra(FileBrowserActivity.EXTRA_SELECT_FOLDER_MODE, true);
+                Intent intent = SafFileImporter.createOpenDocumentTreeIntent();
                 startActivityForResult(intent, REQUEST_LIBRARY_PICKER);
             }
         });
@@ -366,20 +364,34 @@ public class SettingsActivity extends AppCompatActivity {
         if (requestCode == REQUEST_BIOS_PICKER && resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
             if (uri != null) {
-                String biosPath = uri.getPath();
-                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                prefs.edit().putString(KEY_BIOS_PATH, biosPath).apply();
-                refreshBiosPathText();
+                try {
+                    String biosPath = SafFileImporter.importBios(this, uri);
+                    SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                    prefs.edit().putString(KEY_BIOS_PATH, biosPath).apply();
+                    refreshBiosPathText();
+                    Toast.makeText(this, "BIOS imported", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Toast.makeText(this, "BIOS import failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
             }
         }
 
         if (requestCode == REQUEST_LIBRARY_PICKER && resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
             if (uri != null) {
-                String folderPath = uri.getPath();
-                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                prefs.edit().putString(KEY_LIBRARY_FOLDER, folderPath).apply();
-                refreshLibraryPathText();
+                new Thread(() -> {
+                    try {
+                        SafFileImporter.ImportResult result = SafFileImporter.importLibraryTree(this, uri);
+                        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                        prefs.edit().putString(KEY_LIBRARY_FOLDER, result.path).apply();
+                        runOnUiThread(() -> {
+                            refreshLibraryPathText();
+                            Toast.makeText(this, "Imported " + result.importedFileCount + " library files", Toast.LENGTH_SHORT).show();
+                        });
+                    } catch (Exception e) {
+                        runOnUiThread(() -> Toast.makeText(this, "Library import failed: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                    }
+                }, "settings-library-import").start();
             }
         }
     }
@@ -408,13 +420,15 @@ public class SettingsActivity extends AppCompatActivity {
         if (path == null || path.isEmpty()) {
             return path;
         }
-        String externalStorage = Environment.getExternalStorageDirectory().getAbsolutePath();
-        if (path.startsWith(externalStorage)) {
-            String relative = path.substring(externalStorage.length());
-            if (relative.isEmpty()) {
-                return "Storage";
-            }
-            return "Storage" + relative;
+        File libraryDir = SafFileImporter.getManagedLibraryDirectory(this);
+        if (path.startsWith(libraryDir.getAbsolutePath())) {
+            String relative = path.substring(libraryDir.getAbsolutePath().length());
+            return relative.isEmpty() ? "Managed Library" : "Managed Library" + relative;
+        }
+        File biosDir = new File(getFilesDir(), "bios");
+        if (path.startsWith(biosDir.getAbsolutePath())) {
+            String relative = path.substring(biosDir.getAbsolutePath().length());
+            return relative.isEmpty() ? "Managed BIOS" : "Managed BIOS" + relative;
         }
         return path;
     }

@@ -35,3 +35,14 @@ app/*.png
 
 # Local Gradle command output
 gradle_*.log
+
+# Temp inspection/debug artifacts
+.elf-inspect/
+.tmp_aab_inspect/
+_so_check/
+_so_check_new/
+_native_pb_dump.bin
+app-release*.zip
+check_zip.ps1
+git-lsremote.*.txt
+.vscode/

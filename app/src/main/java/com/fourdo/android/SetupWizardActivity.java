@@ -4,9 +4,9 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Environment;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -150,13 +150,12 @@ public class SetupWizardActivity extends AppCompatActivity {
     }
 
     private void openBiosPicker() {
-        Intent intent = new Intent(this, FileBrowserActivity.class);
+        Intent intent = SafFileImporter.createOpenDocumentIntent();
         startActivityForResult(intent, REQUEST_BIOS_FILE);
     }
 
     private void openGamePicker() {
-        Intent intent = new Intent(this, FileBrowserActivity.class);
-        intent.putExtra(FileBrowserActivity.EXTRA_SELECT_FOLDER_MODE, true);
+        Intent intent = SafFileImporter.createOpenDocumentTreeIntent();
         startActivityForResult(intent, REQUEST_GAME);
     }
 
@@ -165,33 +164,37 @@ public class SetupWizardActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (resultCode == RESULT_OK && data != null) {
-            String path = data.getStringExtra(FileBrowserActivity.EXTRA_FILE_PATH);
-            if (path != null && !path.isEmpty()) {
+            Uri uri = data.getData();
+            if (uri != null) {
                 switch (requestCode) {
                     case REQUEST_BIOS_FILE:
-                        if (isValidBiosFile(path)) {
-                            selectedBiosPath = path;
-                            File biosFile = new File(path);
+                        try {
+                            selectedBiosPath = SafFileImporter.importBios(this, uri);
+                            File biosFile = new File(selectedBiosPath);
                             File parentDir = biosFile.getParentFile();
                             if (parentDir != null) {
                                 selectedBiosFolder = parentDir.getAbsolutePath();
                             }
-                            biosStatusText.setText(getString(R.string.setup_bios_selected, getDisplayPath(path)));
+                            biosStatusText.setText(getString(R.string.setup_bios_selected, getDisplayPath(selectedBiosPath)));
                             nextButton.setEnabled(true);
-                        } else {
-                            Toast.makeText(this, R.string.setup_invalid_bios, Toast.LENGTH_SHORT).show();
+                        } catch (Exception e) {
+                            Toast.makeText(this, "BIOS import failed", Toast.LENGTH_SHORT).show();
                         }
                         break;
                     case REQUEST_GAME:
-                        File folder = new File(path);
-                        if (folder.isDirectory()) {
-                            selectedGamesFolder = path;
-                            selectedGamePath = null; // no specific game selected at setup time
-                            gameStatusText.setText(getString(R.string.setup_game_selected, path));
-                            nextButton.setEnabled(true);
-                        } else {
-                            Toast.makeText(this, R.string.setup_invalid_game, Toast.LENGTH_SHORT).show();
-                        }
+                        new Thread(() -> {
+                            try {
+                                SafFileImporter.ImportResult result = SafFileImporter.importLibraryTree(this, uri);
+                                selectedGamesFolder = result.path;
+                                selectedGamePath = null;
+                                runOnUiThread(() -> {
+                                    gameStatusText.setText(getString(R.string.setup_game_selected, getDisplayPath(result.path)));
+                                    nextButton.setEnabled(true);
+                                });
+                            } catch (Exception e) {
+                                runOnUiThread(() -> Toast.makeText(this, "Library import failed", Toast.LENGTH_SHORT).show());
+                            }
+                        }, "setup-library-import").start();
                         break;
                 }
             }
@@ -427,11 +430,10 @@ public class SetupWizardActivity extends AppCompatActivity {
 
     private String getDisplayPath(String path) {
         if (path == null || path.isEmpty()) return path;
-        String externalStorage = Environment.getExternalStorageDirectory().getAbsolutePath();
-        if (path.startsWith(externalStorage)) {
-            String relative = path.substring(externalStorage.length());
-            if (relative.isEmpty()) return "Storage";
-            return "Storage" + relative;
+        File libraryDir = SafFileImporter.getManagedLibraryDirectory(this);
+        if (path.startsWith(libraryDir.getAbsolutePath())) {
+            String relative = path.substring(libraryDir.getAbsolutePath().length());
+            return relative.isEmpty() ? "Managed Library" : "Managed Library" + relative;
         }
         return path;
     }

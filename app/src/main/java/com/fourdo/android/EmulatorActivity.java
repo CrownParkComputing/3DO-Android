@@ -217,12 +217,12 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private void openBiosBrowser() {
-        Intent intent = new Intent(this, FileBrowserActivity.class);
+        Intent intent = SafFileImporter.createOpenDocumentIntent();
         startActivityForResult(intent, REQUEST_BIOS_PICKER);
     }
     
     private void openFileBrowser() {
-        Intent intent = new Intent(this, FileBrowserActivity.class);
+        Intent intent = SafFileImporter.createOpenDocumentIntent();
         startActivityForResult(intent, REQUEST_FILE_PICKER);
     }
 
@@ -234,7 +234,7 @@ public class EmulatorActivity extends AppCompatActivity {
             intent.putExtra(GameLibraryActivity.EXTRA_PICK_MODE, true);
             startActivityForResult(intent, REQUEST_LOAD_CD_PICKER);
         } else {
-            Intent intent = new Intent(this, FileBrowserActivity.class);
+            Intent intent = SafFileImporter.createOpenDocumentIntent();
             startActivityForResult(intent, REQUEST_LOAD_CD_PICKER);
         }
     }
@@ -865,11 +865,12 @@ public class EmulatorActivity extends AppCompatActivity {
             if (resultCode == Activity.RESULT_OK && data != null) {
                 Uri uri = data.getData();
                 if (uri != null) {
-                    String biosPath = uri.getPath();
-                    if (EmulatorPathStore.isValidFilePath(biosPath)) {
+                    try {
+                        String biosPath = SafFileImporter.importBios(this, uri);
                         EmulatorPathStore.saveBiosPath(this, biosPath);
                         initializeEmulatorAsync(null, false);
                         return;
+                    } catch (Exception ignored) {
                     }
                 }
             }
@@ -882,10 +883,13 @@ public class EmulatorActivity extends AppCompatActivity {
             if (resultCode == Activity.RESULT_OK && data != null) {
                 Uri uri = data.getData();
                 if (uri != null) {
-                    mGamePath = uri.getPath();
-                    EmulatorPathStore.saveLastGamePath(this, mGamePath);
-                    initializeEmulatorAsync(mGamePath, true);
-                    return;
+                    try {
+                        mGamePath = SafFileImporter.importGameFile(this, uri);
+                        EmulatorPathStore.saveLastGamePath(this, mGamePath);
+                        initializeEmulatorAsync(mGamePath, true);
+                        return;
+                    } catch (Exception ignored) {
+                    }
                 }
             }
             // If cancelled or error, show message and finish
@@ -915,6 +919,12 @@ public class EmulatorActivity extends AppCompatActivity {
                 Uri uri = data.getData();
                 if (uri != null) {
                     String cdPath = uri.getPath();
+                    if (cdPath == null || !EmulatorPathStore.isSupportedCdPath(cdPath)) {
+                        try {
+                            cdPath = SafFileImporter.importGameFile(this, uri);
+                        } catch (Exception ignored) {
+                        }
+                    }
                     if (EmulatorPathStore.isSupportedCdPath(cdPath)) {
                         mGamePath = cdPath;
                         EmulatorPathStore.saveLastGamePath(this, cdPath);
