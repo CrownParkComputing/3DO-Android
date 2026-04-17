@@ -1,6 +1,21 @@
 # 4DO Android
 
-Android port of 4DO with a Java UI and native emulator/rendering code.
+[![Release](https://img.shields.io/github/v/release/CrownParkComputing/4DO-Android?label=Version)](https://github.com/CrownParkComputing/4DO-Android/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Android](https://img.shields.io/badge/Platform-Android%207.0%2B-green)](https://www.android.com)
+
+Android port of 4DO with a Java UI and native emulator/rendering code — a free, open-source emulator for the [Tapwave Zodiac](https://en.wikipedia.org/wiki/Tapwave_Zodiac) handheld gaming console.
+
+## Downloads
+
+### Latest Release
+**[Download 4DO-Emulator-release.aab](https://github.com/CrownParkComputing/4DO-Android/releases/latest/download/4DO-Emulator-release.aab)**
+
+Requires Android 7.0 (API 24) or later.
+
+For previous releases, visit the [Releases page](https://github.com/CrownParkComputing/4DO-Android/releases).
+
+For documentation and more information, visit the **[4DO Android Documentation site](https://crownparkcomputing.github.io/4DO-Android/)**.
 
 ## Requirements
 
@@ -49,3 +64,22 @@ GitHub Actions build configuration lives in `.github/workflows/android-build.yml
 - `app/cpp/` - Native code
 - `app/src/main/res/` - Android resources
 - `scripts/` - Local helper scripts
+
+## Features
+
+- **Accurate emulation** of the Tapwave Zodiac hardware
+- **On-screen controller** support for touchscreen input
+- **External controller** support via Bluetooth gamepads
+- **Software and hardware rendering** options (OpenGL/Vulkan)
+- **Game library** with box art from IGDB
+- **Saves management** and state snapshots
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Acknowledgements
+
+- Original 4DO emulator by [Lionello "Lion" Vella](https://www.tapatalk.com/groups/tapwave)
+- Tapwave Zodiac community
+- All contributors
