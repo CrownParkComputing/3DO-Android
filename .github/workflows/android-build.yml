@@ -96,8 +96,8 @@ jobs:
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
-    - name: Build Release APK
-      run: ./gradlew --no-daemon assembleRelease
+    - name: Build Release APK and AAB
+      run: ./gradlew --no-daemon assembleRelease bundleRelease
       env:
         KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -111,12 +111,21 @@ jobs:
         path: app/build/outputs/apk/release/app-release.apk
         retention-days: 14
 
+    - name: Upload Release AAB
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-aab-${{ env.RELEASE_TAG }}
+        path: app/build/outputs/bundle/release/app-release.aab
+        retention-days: 14
+
     - name: Publish GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ env.RELEASE_TAG }}
         name: Release ${{ env.RELEASE_TAG }}
-        files: app/build/outputs/apk/release/app-release.apk
+        files: |
+          app/build/outputs/apk/release/app-release.apk
+          app/build/outputs/bundle/release/app-release.aab
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
