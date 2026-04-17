@@ -193,7 +193,22 @@ extern "C" void render_frame(const void* pixels, int width, int height) {
 
     if (g_renderer && g_renderer->isInitialized()) {
         g_renderer->renderFrame(pixels, width, height);
-        g_rendered_frames.fetch_add(1, std::memory_order_relaxed);
+        uint32_t count = g_rendered_frames.fetch_add(1, std::memory_order_relaxed) + 1;
+        // Log every 300 frames (~5 s at 60 fps) so we know rendering is alive.
+        // Also log the first frame and sample the first pixel to catch black frames.
+        if (count == 1 || (count % 300) == 0) {
+            uint32_t first_pixel = *static_cast<const uint32_t*>(pixels);
+            LOGD("render_frame #%u %dx%d first_pixel=0x%08X renderer=%s",
+                 count, width, height, first_pixel,
+                 g_renderer ? g_renderer->getName() : "null");
+        }
+    } else {
+        static uint32_t s_no_renderer_warned = 0;
+        if (s_no_renderer_warned++ == 0) {
+            LOGE("render_frame called but renderer not ready (renderer=%p init=%d)",
+                 (void*)g_renderer,
+                 g_renderer ? (int)g_renderer->isInitialized() : -1);
+        }
     }
 }
 

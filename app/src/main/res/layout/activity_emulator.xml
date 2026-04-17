@@ -13,78 +13,16 @@
         android:layout_height="match_parent"
         android:background="#000000" />
 
-    <!-- Semi-transparent overlay menu (hidden by default) -->
-    <LinearLayout
-        android:id="@+id/overlay_menu"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:orientation="vertical"
-        android:background="#CC222222"
-        android:padding="24dp"
-        android:elevation="8dp"
-        android:visibility="gone">
-
-        <Button
-            android:id="@+id/pause_button"
-            android:layout_width="200dp"
-            android:layout_height="48dp"
-            android:layout_marginBottom="8dp"
-            android:text="@string/pause"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#FF4444"
-            android:textSize="16sp" />
-
-        <Button
-            android:id="@+id/reset_button"
-            android:layout_width="200dp"
-            android:layout_height="48dp"
-            android:layout_marginBottom="8dp"
-            android:text="@string/reset"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#FF8800"
-            android:textSize="16sp" />
-
-        <Button
-            android:id="@+id/load_cd_button"
-            android:layout_width="200dp"
-            android:layout_height="48dp"
-            android:layout_marginBottom="8dp"
-            android:text="@string/load_cd"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#4488FF"
-            android:textSize="16sp" />
-
-        <Button
-            android:id="@+id/render_options_button"
-            android:layout_width="200dp"
-            android:layout_height="48dp"
-            android:layout_marginBottom="8dp"
-            android:text="@string/render_options"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#6666CC"
-            android:textSize="16sp" />
-
-        <Button
-            android:id="@+id/controller_map_button"
-            android:layout_width="200dp"
-            android:layout_height="48dp"
-            android:layout_marginBottom="8dp"
-            android:text="@string/controller_map"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#44AA44"
-            android:textSize="16sp" />
-
-        <Button
-            android:id="@+id/back_button"
-            android:layout_width="200dp"
-            android:layout_height="48dp"
-            android:text="@string/exit"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#888888"
-            android:textSize="16sp" />
-
-    </LinearLayout>
+    <ImageView
+        android:id="@+id/emulator_bezel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:adjustViewBounds="false"
+        android:clickable="false"
+        android:contentDescription="@null"
+        android:focusable="false"
+        android:scaleType="fitXY"
+        android:src="@drawable/emulator_bezel" />
 
     <!-- Top Left: FPS Counter - compact icon style -->
     <TextView
@@ -100,39 +38,38 @@
         android:background="#88000000"
         android:padding="6dp"
         android:elevation="4dp"
-        android:visibility="visible" />
-
-    <!-- Debug toggle button for showing all selected rendering options -->
-    <Button
-        android:id="@+id/debug_toggle_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="8dp"
-        android:text="Debug: OFF"
-        android:textColor="#FFFFFF"
-        android:backgroundTint="#66000000"
-        android:padding="8dp"
-        android:elevation="4dp"
-        android:visibility="visible" />
+        android:visibility="gone" />
 
     <!-- Native to 8K option in graphics options menu -->
     <!-- This will be handled in the render options dialog, no need for a separate button here -->
 
-    <!-- Bottom Left: Menu hamburger button -->
-    <Button
-        android:id="@+id/menu_toggle_button"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+    <ImageButton
+        android:id="@+id/pause_button"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
         android:layout_gravity="bottom|start"
         android:layout_marginBottom="16dp"
         android:layout_marginStart="16dp"
-        android:text="☰"
-        android:textSize="28sp"
-        android:textColor="#FFFFFF"
-        android:backgroundTint="#66000000"
-        android:elevation="4dp" />
+        android:background="#66000000"
+        android:contentDescription="@string/pause"
+        android:elevation="4dp"
+        android:padding="12dp"
+        android:src="@android:drawable/ic_media_pause"
+        android:tint="#FFFFFF" />
+
+    <ImageButton
+        android:id="@+id/controller_map_button"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="#66000000"
+        android:contentDescription="@string/controller_map"
+        android:elevation="4dp"
+        android:padding="12dp"
+        android:src="@android:drawable/ic_menu_manage"
+        android:tint="#FFFFFF" />
 
     <!-- Status indicator for current settings -->
     <TextView
@@ -147,6 +84,31 @@
         android:textSize="14sp"
         android:background="#66000000"
         android:padding="6dp"
-        android:visibility="visible" />
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/loading_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#99000000"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:indeterminate="true" />
+
+        <TextView
+            android:id="@+id/loading_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Loading game..."
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+    </LinearLayout>
 
 </FrameLayout>

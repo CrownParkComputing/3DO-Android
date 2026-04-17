@@ -76,9 +76,9 @@ public final class ControllerMappingManager {
             case BUTTON_C:
                 return "C";
             case BUTTON_PLAY_PAUSE:
-                return "PLAY/PAUSE";
+                return "P";
             case BUTTON_STOP:
-                return "STOP";
+                return "X";
             case BUTTON_DPAD_UP:
                 return "UP";
             case BUTTON_DPAD_DOWN:

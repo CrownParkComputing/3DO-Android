@@ -618,6 +618,7 @@ int FourdoCore::init(const std::string& game_path, const std::string& bios_path)
 
     if (m_initialized.load(std::memory_order_acquire)) {
         LOGD("Already initialised");
+        m_status_message = "Running";
         return 0;
     }
 
@@ -638,6 +639,7 @@ int FourdoCore::init(const std::string& game_path, const std::string& bios_path)
     m_video_buffer = static_cast<u8*>(malloc(FB_BYTES));
     if (!m_video_buffer) {
         LOGE("Failed to allocate video buffer");
+        m_status_message = "Failed to allocate video buffer";
         return -1;
     }
     memset(m_video_buffer, 0, FB_BYTES);
@@ -652,6 +654,15 @@ int FourdoCore::init(const std::string& game_path, const std::string& bios_path)
     if (!game_path.empty()) {
         if (!m_cdrom.load_disc(game_path)) {
             LOGE("CdromInterface::load_disc failed for: %s", game_path.c_str());
+            if (game_path.size() >= 4 && game_path.substr(game_path.size() - 4) == ".chd") {
+                m_status_message = "CHD image is not supported by the current native loader";
+            } else {
+                m_status_message = "Failed to load disc image";
+            }
+            m_cdrom.eject();
+            free(m_video_buffer);
+            m_video_buffer = nullptr;
+            return -2;
         }
     }
 
@@ -665,6 +676,7 @@ int FourdoCore::init(const std::string& game_path, const std::string& bios_path)
         free(m_video_buffer);
         m_video_buffer = nullptr;
         m_thread_running.store(false, std::memory_order_release);
+        m_status_message = "Failed to create emulator thread";
         return -1;
     }
 
@@ -675,10 +687,14 @@ int FourdoCore::init(const std::string& game_path, const std::string& bios_path)
 
     if (m_init_state != 1) {
         LOGE("Emulator init timed out or failed (state=%d)", m_init_state);
+        if (m_status_message == "Not Running") {
+            m_status_message = "Emulator init failed";
+        }
         return -1;
     }
 
     LOGD("FourdoCore initialised successfully");
+    m_status_message = "Running";
     return 0;
 }
 
@@ -710,6 +726,7 @@ void FourdoCore::shutdown() {
     // Reset audio ring
     m_audio_write_pos.store(0, std::memory_order_relaxed);
     m_audio_read_pos.store(0, std::memory_order_relaxed);
+    m_status_message = "Not Running";
 
     LOGD("FourdoCore shutdown complete");
 }
@@ -732,12 +749,14 @@ bool FourdoCore::load_cd(const std::string& path) {
     if (path.empty()) {
         m_cdrom.eject();
         m_game_path.clear();
+        m_status_message = "Running";
         return true;
     }
 
     bool ok = m_cdrom.load_disc(path);
     if (ok) {
         m_game_path = path;
+        m_status_message = "Running";
         if (m_initialized.load(std::memory_order_acquire)) {
             bool was_paused = m_paused.load(std::memory_order_acquire);
             m_paused.store(true, std::memory_order_release);
@@ -748,6 +767,10 @@ bool FourdoCore::load_cd(const std::string& path) {
             usleep(30000);
             m_paused.store(was_paused, std::memory_order_release);
         }
+    } else if (path.size() >= 4 && path.substr(path.size() - 4) == ".chd") {
+        m_status_message = "CHD image is not supported by the current native loader";
+    } else {
+        m_status_message = "Failed to load disc image";
     }
     return ok;
 }
@@ -799,8 +822,9 @@ bool FourdoCore::nvram_set(const u8* data, size_t size) {
 // status
 // -----------------------------------------------------------------------
 const char* FourdoCore::status() const {
-    if (!m_initialized.load(std::memory_order_acquire)) return "Not Running";
-    return m_paused.load(std::memory_order_acquire) ? "Paused" : "Running";
+    if (!m_initialized.load(std::memory_order_acquire)) return m_status_message.c_str();
+    if (m_paused.load(std::memory_order_acquire)) return "Paused";
+    return m_status_message.c_str();
 }
 
 // -----------------------------------------------------------------------

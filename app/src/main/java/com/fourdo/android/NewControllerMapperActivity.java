@@ -7,9 +7,13 @@ import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 public class NewControllerMapperActivity extends Activity {
+
+    private static final int BUTTON_BACKGROUND_DEFAULT = R.drawable.mapper_button_background;
+    private static final int BUTTON_BACKGROUND_SELECTED = R.drawable.mapper_button_selected_background;
 
     private Button buttonA;
     private Button buttonB;
@@ -23,6 +27,7 @@ public class NewControllerMapperActivity extends Activity {
     private Button buttonL1;
     private Button buttonR1;
     private Button backButton;
+    private TextView mapperStatusText;
     private int waitingForButton = -1;
 
     @Override
@@ -45,6 +50,7 @@ public class NewControllerMapperActivity extends Activity {
         buttonL1 = findViewById(R.id.button_l1);
         buttonR1 = findViewById(R.id.button_r1);
         backButton = findViewById(R.id.back_button);
+        mapperStatusText = findViewById(R.id.mapper_status_text);
 
         // Add touch feedback + assignment handler
         addTouchFeedback(buttonA, ControllerMappingManager.BUTTON_A);
@@ -75,11 +81,17 @@ public class NewControllerMapperActivity extends Activity {
             public boolean onTouch(View v, android.view.MotionEvent event) {
                 switch (event.getAction()) {
                     case android.view.MotionEvent.ACTION_DOWN:
-                        button.setBackgroundColor(0xFF00FF00); // Green when pressed
+                        if (waitingForButton != buttonIndex) {
+                            button.setScaleX(0.96f);
+                            button.setScaleY(0.96f);
+                            button.setAlpha(0.92f);
+                        }
                         break;
                     case android.view.MotionEvent.ACTION_UP:
                     case android.view.MotionEvent.ACTION_CANCEL:
-                        button.setBackgroundColor(0xFF333333); // Reset color
+                        button.setScaleX(1.0f);
+                        button.setScaleY(1.0f);
+                        button.setAlpha(1.0f);
                         break;
                 }
                 return false;
@@ -90,6 +102,7 @@ public class NewControllerMapperActivity extends Activity {
             @Override
             public void onClick(View v) {
                 waitingForButton = buttonIndex;
+                updateWaitingState();
                 Toast.makeText(NewControllerMapperActivity.this,
                         "Press a controller button for 3DO " + ControllerMappingManager.buttonName(buttonIndex),
                         Toast.LENGTH_SHORT).show();
@@ -114,6 +127,7 @@ public class NewControllerMapperActivity extends Activity {
                     Toast.LENGTH_SHORT).show();
             waitingForButton = -1;
             refreshButtonLabels();
+                updateWaitingState();
             return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -138,6 +152,7 @@ public class NewControllerMapperActivity extends Activity {
         setButtonLabel(buttonDpadRight, ControllerMappingManager.BUTTON_DPAD_RIGHT);
         setButtonLabel(buttonL1, ControllerMappingManager.BUTTON_L1);
         setButtonLabel(buttonR1, ControllerMappingManager.BUTTON_R1);
+        updateWaitingState();
     }
 
     private void setButtonLabel(Button view, int buttonIndex) {
@@ -145,6 +160,41 @@ public class NewControllerMapperActivity extends Activity {
         view.setText(ControllerMappingManager.buttonName(buttonIndex)
                 + "\n"
                 + ControllerMappingManager.keyName(keyCode));
+    }
+
+    private void updateWaitingState() {
+        if (mapperStatusText != null) {
+            if (waitingForButton >= 0) {
+                mapperStatusText.setText("Press a controller button for " + ControllerMappingManager.buttonName(waitingForButton));
+            } else {
+                mapperStatusText.setText("Tap a control on the 3DO pad image to remap it.");
+            }
+        }
+
+        updateButtonSelection(buttonA, ControllerMappingManager.BUTTON_A);
+        updateButtonSelection(buttonB, ControllerMappingManager.BUTTON_B);
+        updateButtonSelection(buttonC, ControllerMappingManager.BUTTON_C);
+        updateButtonSelection(buttonPlayPause, ControllerMappingManager.BUTTON_PLAY_PAUSE);
+        updateButtonSelection(buttonStop, ControllerMappingManager.BUTTON_STOP);
+        updateButtonSelection(buttonDpadUp, ControllerMappingManager.BUTTON_DPAD_UP);
+        updateButtonSelection(buttonDpadDown, ControllerMappingManager.BUTTON_DPAD_DOWN);
+        updateButtonSelection(buttonDpadLeft, ControllerMappingManager.BUTTON_DPAD_LEFT);
+        updateButtonSelection(buttonDpadRight, ControllerMappingManager.BUTTON_DPAD_RIGHT);
+        updateButtonSelection(buttonL1, ControllerMappingManager.BUTTON_L1);
+        updateButtonSelection(buttonR1, ControllerMappingManager.BUTTON_R1);
+    }
+
+    private void updateButtonSelection(Button button, int buttonIndex) {
+        if (button == null) {
+            return;
+        }
+        if (waitingForButton == buttonIndex) {
+            button.setBackgroundResource(BUTTON_BACKGROUND_SELECTED);
+            button.setAlpha(1.0f);
+        } else {
+            button.setBackgroundResource(BUTTON_BACKGROUND_DEFAULT);
+            button.setAlpha(0.88f);
+        }
     }
 
 }

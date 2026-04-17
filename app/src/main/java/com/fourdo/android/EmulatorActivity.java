@@ -17,6 +17,7 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ArrayAdapter;
@@ -41,16 +42,13 @@ public class EmulatorActivity extends AppCompatActivity {
         System.loadLibrary("native-lib");
     }
 
-    private Button pauseButton;
-    private Button resetButton;
-    private Button loadCdButton;
-    private Button renderOptionsButton;
-    private Button backButton;
-    private Button controllerMapButton;
-    private LinearLayout overlayMenu;
-    private boolean menuVisible = false;
+    private ImageButton pauseButton;
+    private ImageButton controllerMapButton;
     
     // Quick toolbar buttons
+    private android.widget.ProgressBar loadingOverlaySpinner;
+    private View loadingOverlay;
+    private TextView loadingText;
     private Button cdButton;
     private Button aspectRatioButton;
     private Button rendererButton;
@@ -58,11 +56,8 @@ public class EmulatorActivity extends AppCompatActivity {
     private Button aaButton;
     private Button crtButton;
     private Button scaleButton;
-    private Button menuToggleButton;
-    private Button debugToggleButton;
     private android.widget.TextView statusIndicator;
     private android.widget.TextView fpsCounter;
-    private LinearLayout quickToolbar;
     private String appVersion = "";
     
     // FPS counter
@@ -71,6 +66,9 @@ public class EmulatorActivity extends AppCompatActivity {
     private android.os.Handler fpsHandler = new android.os.Handler();
     private Runnable fpsRunnable;
     private boolean debugModeEnabled = false;
+    private boolean manuallyPaused = false;
+    private boolean emulatorInitializing = false;
+    private boolean emulatorStarted = false;
     
     // Settings state
     private boolean aspectRatio16by9 = false;  // false = 4:3, true = 16:9
@@ -121,86 +119,40 @@ public class EmulatorActivity extends AppCompatActivity {
 
     private void bindViews() {
         pauseButton = findViewById(R.id.pause_button);
-        resetButton = findViewById(R.id.reset_button);
-        loadCdButton = findViewById(R.id.load_cd_button);
-        renderOptionsButton = findViewById(R.id.render_options_button);
-        backButton = findViewById(R.id.back_button);
         controllerMapButton = findViewById(R.id.controller_map_button);
-        overlayMenu = findViewById(R.id.overlay_menu);
-        cdButton = loadCdButton;
+        loadingOverlay = findViewById(R.id.loading_overlay);
+        loadingText = findViewById(R.id.loading_text);
+        cdButton = null;
         aspectRatioButton = null;
         rendererButton = null;
         filteringButton = null;
         aaButton = null;
         crtButton = null;
         scaleButton = null;
-        menuToggleButton = findViewById(R.id.menu_toggle_button);
-        debugToggleButton = findViewById(R.id.debug_toggle_button);
         statusIndicator = findViewById(R.id.status_indicator);
         fpsCounter = findViewById(R.id.fps_counter);
-        quickToolbar = null;
     }
 
     private void initializeUiState() {
-        applyDebugModeUi();
         loadSettings();
+        applyDebugModeUi();
         updateButtonLabels();
         startFpsCounter();
         setupQuickToolbar();
     }
 
     private void setupActivityButtons() {
-        menuToggleButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                toggleOverlayMenu();
-            }
-        });
-
         controllerMapButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 openControllerMap();
-                hideOverlayMenu();
             }
         });
 
         pauseButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                togglePause();
-                hideOverlayMenu();
-            }
-        });
-
-        resetButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideOverlayMenu();
-                performHardReset();
-            }
-        });
-
-        loadCdButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideOverlayMenu();
-                openLoadCdBrowser();
-            }
-        });
-
-        renderOptionsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showRenderOptionsDialog();
-            }
-        });
-
-        backButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideOverlayMenu();
-                finish();
+                showPauseMenu();
             }
         });
     }
@@ -257,13 +209,10 @@ public class EmulatorActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.bios_required, Toast.LENGTH_SHORT).show();
             openBiosBrowser();
         } else if (mGamePath == null || mGamePath.isEmpty()) {
-            initializeEmulator(null);
-            emulatorSurfaceView.postDelayed(() -> {
-                showOverlayMenu();
-                Toast.makeText(this, "Select a game from the menu", Toast.LENGTH_LONG).show();
-            }, 1000);
+            initializeEmulatorAsync(null, false);
+            emulatorSurfaceView.postDelayed(() -> Toast.makeText(this, "Use the controller button to choose mappings", Toast.LENGTH_SHORT).show(), 1000);
         } else {
-            initializeEmulator(mGamePath);
+            initializeEmulatorAsync(mGamePath, true);
         }
     }
 
@@ -381,13 +330,6 @@ public class EmulatorActivity extends AppCompatActivity {
         // Update status indicator
         updateStatusIndicator();
         
-        // Debug toggle button
-        debugToggleButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                toggleDebugMode();
-            }
-        });
     }
 
     private String[] getResolutionScaleOptions() {
@@ -670,6 +612,7 @@ public class EmulatorActivity extends AppCompatActivity {
     
     private void loadSettings() {
         SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        debugModeEnabled = prefs.getBoolean(SettingsActivity.KEY_DEBUG_OVERLAY_ENABLED, false);
         aspectRatio16by9 = prefs.getBoolean("aspect_ratio_16by9", false);
         currentRenderer = normalizeRendererType(prefs.getInt(SettingsActivity.KEY_RENDERER_TYPE, RENDERER_AUTO));
         nearestFiltering = prefs.getBoolean("nearest_filtering", false);
@@ -880,36 +823,6 @@ public class EmulatorActivity extends AppCompatActivity {
         frameCount++;
     }
 
-    private void toggleOverlayMenu() {
-        if (menuVisible) {
-            hideOverlayMenu();
-        } else {
-            showOverlayMenu();
-        }
-    }
-
-    private void showOverlayMenu() {
-        if (overlayMenu != null) {
-            overlayMenu.setVisibility(View.VISIBLE);
-            menuVisible = true;
-        }
-    }
-
-    private void hideOverlayMenu() {
-        if (overlayMenu != null) {
-            overlayMenu.setVisibility(View.GONE);
-            menuVisible = false;
-        }
-    }
-    
-    private void toggleDebugMode() {
-        debugModeEnabled = !debugModeEnabled;
-        applyDebugModeUi();
-        if (debugModeEnabled) {
-            updateStatusIndicator();
-        }
-    }
-
     private void applyDebugModeUi() {
         if (fpsCounter != null) {
             fpsCounter.setVisibility(debugModeEnabled ? View.VISIBLE : View.GONE);
@@ -917,8 +830,8 @@ public class EmulatorActivity extends AppCompatActivity {
         if (statusIndicator != null) {
             statusIndicator.setVisibility(debugModeEnabled ? View.VISIBLE : View.GONE);
         }
-        if (debugToggleButton != null) {
-            debugToggleButton.setText(debugModeEnabled ? "Debug: ON" : "Debug: OFF");
+        if (debugModeEnabled) {
+            updateStatusIndicator();
         }
     }
 
@@ -930,7 +843,7 @@ public class EmulatorActivity extends AppCompatActivity {
             intent.putExtra(GameLibraryActivity.EXTRA_PICK_MODE, true);
             startActivityForResult(intent, REQUEST_LIBRARY_GAME_PICKER);
         } else {
-            initializeEmulator(null);
+            initializeEmulatorAsync(null, false);
         }
     }
 
@@ -955,7 +868,7 @@ public class EmulatorActivity extends AppCompatActivity {
                     String biosPath = uri.getPath();
                     if (EmulatorPathStore.isValidFilePath(biosPath)) {
                         EmulatorPathStore.saveBiosPath(this, biosPath);
-                        initializeEmulator(null);
+                        initializeEmulatorAsync(null, false);
                         return;
                     }
                 }
@@ -971,7 +884,7 @@ public class EmulatorActivity extends AppCompatActivity {
                 if (uri != null) {
                     mGamePath = uri.getPath();
                     EmulatorPathStore.saveLastGamePath(this, mGamePath);
-                    initializeEmulator(mGamePath);
+                    initializeEmulatorAsync(mGamePath, true);
                     return;
                 }
             }
@@ -988,12 +901,12 @@ public class EmulatorActivity extends AppCompatActivity {
                     if (EmulatorPathStore.isSupportedCdPath(gamePath)) {
                         mGamePath = gamePath;
                         EmulatorPathStore.saveLastGamePath(this, gamePath);
-                        initializeEmulator(mGamePath);
+                        initializeEmulatorAsync(mGamePath, true);
                         return;
                     }
                 }
             }
-            initializeEmulator(null);
+            initializeEmulatorAsync(null, false);
             return;
         }
 
@@ -1048,7 +961,7 @@ public class EmulatorActivity extends AppCompatActivity {
             mGamePath = gameToLoad;
         }
 
-        initializeEmulator(gameToLoad);
+        initializeEmulatorAsync(gameToLoad, gameToLoad != null && !gameToLoad.isEmpty());
     }
 
     @Override
@@ -1071,34 +984,95 @@ public class EmulatorActivity extends AppCompatActivity {
         return super.onKeyUp(keyCode, event);
     }
     
-    private void initializeEmulator(String gamePath) {
-        String biosPath = EmulatorPathStore.getSavedBiosPath(this);
-
-        // Apply region setting before init
-        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
-        int region = prefs.getInt(SettingsActivity.KEY_REGION, REGION_NTSC);
-        setRegion(region);
-
-        // Initialize emulator
-        if (!initEmulator(gamePath, biosPath)) {
-            Toast.makeText(this, "Failed to initialize emulator", Toast.LENGTH_LONG).show();
-            finish();
-        } else {
-            startAudioPlayback();
-            // Load NVRAM if available
-            String nvramPath = getNVRAMPath();
-            if (nvramPath != null && !nvramPath.isEmpty()) {
-                File nvramFile = new File(nvramPath);
-                if (nvramFile.exists()) {
-                    boolean loaded = loadNVRAM(nvramPath);
-                    if (loaded) {
-                        Log.d("4DO-Emulator", "NVRAM loaded from: " + nvramPath);
-                    }
-                } else {
-                    Log.d("4DO-Emulator", "No existing NVRAM file, using freshly initialized NVRAM");
-                }
-            }
+    private void initializeEmulatorAsync(String gamePath, boolean loadingGame) {
+        if (emulatorInitializing) {
+            return;
         }
+
+        emulatorInitializing = true;
+        emulatorStarted = false;
+        showLoadingOverlay(loadingGame ? "Loading game..." : "Starting emulator...");
+        new Thread(() -> {
+            boolean initialized;
+            String biosPath = EmulatorPathStore.getSavedBiosPath(this);
+            SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+            int region = prefs.getInt(SettingsActivity.KEY_REGION, REGION_NTSC);
+            setRegion(region);
+            initialized = initEmulator(gamePath, biosPath);
+
+            runOnUiThread(() -> {
+                emulatorInitializing = false;
+                hideLoadingOverlay();
+                if (!initialized) {
+                    emulatorStarted = false;
+                    String status = getStatus();
+                    String message = "Failed to initialize emulator";
+                    if (status != null && !status.isEmpty() && !"Not Running".equals(status)) {
+                        message = status;
+                    }
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                    finish();
+                    return;
+                }
+
+                emulatorStarted = true;
+                startAudioPlayback();
+                String nvramPath = getNVRAMPath();
+                if (nvramPath != null && !nvramPath.isEmpty()) {
+                    File nvramFile = new File(nvramPath);
+                    if (nvramFile.exists()) {
+                        loadNVRAM(nvramPath);
+                    }
+                }
+            });
+        }, "emulator-init").start();
+    }
+
+    private void showLoadingOverlay(String message) {
+        if (loadingText != null) {
+            loadingText.setText(message);
+        }
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void hideLoadingOverlay() {
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisibility(View.GONE);
+        }
+    }
+
+    private void showPauseMenu() {
+        manuallyPaused = true;
+        pauseEmulator();
+
+        new AlertDialog.Builder(this)
+            .setTitle("Paused")
+            .setItems(new CharSequence[]{"Resume", "Controller Mapping", "Return to Launcher"}, (dialog, which) -> {
+                if (which == 0) {
+                    manuallyPaused = false;
+                    resumeEmulator();
+                } else if (which == 1) {
+                    manuallyPaused = false;
+                    openControllerMap();
+                } else if (which == 2) {
+                    returnToLauncher();
+                }
+            })
+            .setOnCancelListener(dialog -> {
+                manuallyPaused = false;
+                resumeEmulator();
+            })
+            .show();
+    }
+
+    private void returnToLauncher() {
+        manuallyPaused = false;
+        Intent intent = new Intent(this, SplashActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
+        finish();
     }
 
     private String getNVRAMPath() {
@@ -1126,6 +1100,9 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private void autoSaveNVRAM() {
+        if (!emulatorStarted) {
+            return;
+        }
         String nvramPath = getNVRAMPath();
         if (nvramPath != null && !nvramPath.isEmpty()) {
             boolean saved = saveNVRAM(nvramPath);
@@ -1147,13 +1124,17 @@ public class EmulatorActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         autoSaveNVRAM();
-        pauseEmulator();
+        if (emulatorStarted && !emulatorInitializing) {
+            pauseEmulator();
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        resumeEmulator();
+        if (emulatorStarted && !emulatorInitializing && !manuallyPaused) {
+            resumeEmulator();
+        }
     }
 
     @Override
@@ -1162,6 +1143,7 @@ public class EmulatorActivity extends AppCompatActivity {
         super.onDestroy();
         stopFpsCounter();
         stopAudioPlayback();
+        emulatorStarted = false;
         shutdownEmulator();
         cleanupRenderer();
     }
@@ -1189,6 +1171,7 @@ public class EmulatorActivity extends AppCompatActivity {
     private native void togglePause();
     private native void resetEmulator();
     private native boolean loadCdImage(String gamePath);
+    private native String getStatus();
     private native void setInputState(int button, boolean pressed);
     private native int drainAudioFrames(int[] packedFrames);
     private native boolean initRenderer(int width, int height);

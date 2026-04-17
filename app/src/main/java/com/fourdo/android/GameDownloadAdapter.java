@@ -13,6 +13,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.fourdo.android.DownloadSourceActivity.LolRomGame;
 import com.fourdo.android.IgdbService.IgdbGame;
 
 import java.lang.ref.WeakReference;
@@ -130,8 +131,8 @@ public class GameDownloadAdapter extends RecyclerView.Adapter<GameDownloadAdapte
             } else {
                 // No IGDB info, show placeholder
                 summaryText.setVisibility(View.GONE);
-                regionText.setText(game.pageUrl);
-                releaseText.setText("");
+                regionText.setText(game.region != null ? game.region : "");
+                releaseText.setText(game.fileSize != null ? game.fileSize : "");
                 coverProgress.setVisibility(View.GONE);
                 coverImage.setImageResource(R.drawable.ic_launcher_foreground);
                 
@@ -159,7 +160,7 @@ public class GameDownloadAdapter extends RecyclerView.Adapter<GameDownloadAdapte
             igdbService.lookupGame(game.title, result -> {
                 if (result != null) {
                     igdbCache.put(key, result);
-                    int pos = getBindingAdapterPosition();
+                    int pos = getAdapterPosition();
                     if (pos != RecyclerView.NO_POSITION) {
                         notifyItemChanged(pos);
                     }

@@ -171,6 +171,7 @@ private:
 
     std::string m_game_path;
     std::string m_bios_path;
+    std::string m_status_message{"Not Running"};
     int         m_region{0};  // 0=NTSC (default), 1=PAL1, 2=PAL2
 
     pthread_t m_thread{};

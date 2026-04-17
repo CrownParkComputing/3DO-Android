@@ -1,18 +1,17 @@
 package com.fourdo.android;
 
-import android.app.AlertDialog;
-import android.app.ProgressDialog;
-import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.view.View;
+import android.view.KeyEvent;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -23,15 +22,11 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -40,369 +35,228 @@ import java.util.regex.Pattern;
 public class DownloadSourceActivity extends AppCompatActivity {
 
     private static final String TAG = "DownloadSource";
-    
-    private static final String LOLROMS_BASE_URL = "https://lolroms.com/Panasonic%20-%203DO";
-    
+    private static final String ARCHIVE_BASE_URL = "https://archive.org/download/chd_3do/CHD-3DO/";
+
     private TextView statusText;
-    private RecyclerView gameRecyclerView;
-    private Button searchButton;
-    private Button refreshButton;
-    private Button backButton;
     private EditText searchEditText;
+    private RecyclerView gameRecyclerView;
+    private Button refreshButton;
+    private ImageButton backButton;
     private ProgressBar loadingProgress;
-    
-    private List<LolRomGame> gameList = new ArrayList<>();
+
+    private final List<LolRomGame> gameList = new ArrayList<>();
+    private final List<LolRomGame> allGames = new ArrayList<>();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService executor = Executors.newFixedThreadPool(3);
+
     private GameDownloadAdapter adapter;
-    private ExecutorService downloadExecutor = Executors.newFixedThreadPool(3);
-    private Handler mainHandler = new Handler(Looper.getMainLooper());
+    private DownloadService downloadService;
     private IgdbService igdbService;
-    
+    private volatile boolean downloadInProgress = false;
+
     public static class LolRomGame {
         String title;
         String pageUrl;
         String downloadUrl;
         String fileSize;
         String region;
-        
-        LolRomGame(String title, String pageUrl) {
+
+        LolRomGame(String title, String pageUrl, String downloadUrl, String fileSize, String region) {
             this.title = title;
             this.pageUrl = pageUrl;
-        }
-        
-        LolRomGame(String title, String pageUrl, String region) {
-            this.title = title;
-            this.pageUrl = pageUrl;
+            this.downloadUrl = downloadUrl;
+            this.fileSize = fileSize;
             this.region = region;
         }
     }
-    
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_download_source);
-        
+
         DeviceOrientationManager.setLandscapeOrientation(this);
-        
+
         statusText = findViewById(R.id.status_text);
+        searchEditText = findViewById(R.id.search_edit);
         gameRecyclerView = findViewById(R.id.game_list);
-        searchButton = findViewById(R.id.search_button);
         refreshButton = findViewById(R.id.refresh_button);
         backButton = findViewById(R.id.back_button);
-        searchEditText = findViewById(R.id.search_edit);
         loadingProgress = findViewById(R.id.loading_progress);
-        
-        igdbService = new IgdbService(this);
-        
+
+        igdbService = IgdbService.getInstance(this);
+        downloadService = DownloadService.getInstance(this);
+
         adapter = new GameDownloadAdapter(this, gameList, igdbService);
+        adapter.setOnGameClickListener((game, igdbInfo) -> downloadGame(game));
         gameRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         gameRecyclerView.setAdapter(adapter);
-        
-        adapter.setOnGameClickListener((game, igdbInfo) -> {
-            if (game != null) {
-                downloadGame(game);
-            }
-        });
-        
-        searchButton.setOnClickListener(v -> {
-            String query = searchEditText.getText().toString().trim();
-            if (!query.isEmpty()) {
-                searchGames(query);
-            } else {
-                loadGames();
-            }
-        });
-        
+
         refreshButton.setOnClickListener(v -> loadGames());
-        
         backButton.setOnClickListener(v -> finish());
-        
+        searchEditText.setOnEditorActionListener((TextView view, int actionId, KeyEvent event) -> {
+            boolean searchAction = actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE;
+            boolean enterKey = event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER;
+            if (searchAction || enterKey) {
+                searchGames(searchEditText.getText().toString());
+                return true;
+            }
+            return false;
+        });
+
         loadGames();
     }
-    
+
     private void loadGames() {
-        loadingProgress.setVisibility(View.VISIBLE);
-        statusText.setText("Loading games from lolroms.com...");
-        
-        downloadExecutor.execute(() -> {
+        loadingProgress.setVisibility(ProgressBar.VISIBLE);
+        statusText.setText("Loading Archive.org 3DO CHDs...");
+
+        executor.execute(() -> {
             try {
-                List<LolRomGame> games = new ArrayList<>();
-                
-                Document doc = Jsoup.connect(LOLROMS_BASE_URL)
-                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                Document doc = Jsoup.connect(ARCHIVE_BASE_URL)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) 4DO-Android/2.0")
                     .timeout(30000)
                     .get();
-                
-                Elements gameLinks = doc.select("a[href*=/rom/]");
-                
-                Log.d(TAG, "Found " + gameLinks.size() + " game links on main page");
-                
-                for (Element link : gameLinks) {
+
+                Elements rows = doc.select("table.directory-listing-table tr");
+                List<LolRomGame> games = new ArrayList<>();
+
+                for (Element row : rows) {
+                    Element link = row.selectFirst("td a[href$=.chd]");
+                    if (link == null) {
+                        continue;
+                    }
+
                     String href = link.attr("href");
-                    String title = link.text().trim();
-                    
-                    if (title.isEmpty() || title.contains("...")) {
-                        continue;
+                    String downloadUrl = link.absUrl("href");
+                    if (downloadUrl == null || downloadUrl.isEmpty()) {
+                        downloadUrl = ARCHIVE_BASE_URL + href;
                     }
-                    
-                    if (href.contains("page=") || href.contains("search=")) {
-                        continue;
-                    }
-                    
+
+                    String visibleName = link.text().trim();
+                    String title = normalizeTitle(visibleName, href);
+                    Elements cells = row.select("td");
+                    String fileSize = cells.size() > 2 ? cells.get(2).text().trim() : "";
                     String region = extractRegion(title);
-                    games.add(new LolRomGame(title, href, region));
+                    games.add(new LolRomGame(title, downloadUrl, downloadUrl, fileSize, region));
                 }
-                
+
                 mainHandler.post(() -> {
+                    allGames.clear();
+                    allGames.addAll(games);
                     gameList.clear();
                     gameList.addAll(games);
                     adapter.notifyDataSetChanged();
-                    loadingProgress.setVisibility(View.GONE);
-                    statusText.setText(games.size() + " games found");
+                    loadingProgress.setVisibility(ProgressBar.GONE);
+                    statusText.setText(games.size() + " CHDs available");
                 });
-                
             } catch (Exception e) {
-                Log.e(TAG, "Error loading games: " + e.getMessage());
+                Log.e(TAG, "Error loading archive listing", e);
                 mainHandler.post(() -> {
-                    loadingProgress.setVisibility(View.GONE);
-                    statusText.setText("Error: " + e.getMessage());
+                    loadingProgress.setVisibility(ProgressBar.GONE);
+                    statusText.setText("Failed to load Archive.org listing");
                 });
             }
         });
     }
-    
+
+    private void searchGames(String query) {
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        gameList.clear();
+
+        if (normalizedQuery.isEmpty()) {
+            gameList.addAll(allGames);
+        } else {
+            for (LolRomGame game : allGames) {
+                if (game.title.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+                    gameList.add(game);
+                }
+            }
+        }
+
+        adapter.notifyDataSetChanged();
+        statusText.setText(gameList.size() + " results");
+    }
+
+    private void downloadGame(LolRomGame game) {
+        if (downloadInProgress) {
+            statusText.setText("A download is already in progress");
+            return;
+        }
+
+        downloadInProgress = true;
+        loadingProgress.setVisibility(ProgressBar.VISIBLE);
+        statusText.setText("Starting download: " + game.title);
+
+        String fileName = buildDownloadFileName(game);
+        downloadService.downloadFile(game.downloadUrl, fileName, downloadService.getPreferredDownloadsDir(), new DownloadService.DownloadCallback() {
+            @Override
+            public void onProgress(int progress) {
+                statusText.setText("Downloading " + game.title + " (" + progress + "%)");
+            }
+
+            @Override
+            public void onComplete(String filePath) {
+                downloadInProgress = false;
+                loadingProgress.setVisibility(ProgressBar.GONE);
+                markLibraryRefreshRequired();
+                statusText.setText("Downloaded: " + game.title);
+            }
+
+            @Override
+            public void onError(String error) {
+                downloadInProgress = false;
+                loadingProgress.setVisibility(ProgressBar.GONE);
+                statusText.setText("Download failed: " + error);
+            }
+        });
+    }
+
+    private void markLibraryRefreshRequired() {
+        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        prefs.edit().putBoolean(SettingsActivity.KEY_LIBRARY_REFRESH_REQUIRED, true).apply();
+    }
+
+    private String buildDownloadFileName(LolRomGame game) {
+        String fileName = game.downloadUrl.substring(game.downloadUrl.lastIndexOf('/') + 1);
+        try {
+            fileName = URLDecoder.decode(fileName, StandardCharsets.UTF_8.name());
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to decode download file name", e);
+        }
+
+        if (!fileName.toLowerCase(Locale.ROOT).endsWith(".chd")) {
+            fileName = game.title + ".chd";
+        }
+        return fileName;
+    }
+
+    private String normalizeTitle(String visibleName, String href) {
+        String title = visibleName != null && !visibleName.isEmpty() ? visibleName : href;
+        try {
+            title = URLDecoder.decode(title, StandardCharsets.UTF_8.name());
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to decode title", e);
+        }
+        return title.replaceFirst("(?i)\\.chd$", "").trim();
+    }
+
     private String extractRegion(String title) {
-        if (title.contains("[U]")) return "USA";
-        if (title.contains("[E]")) return "Europe";
-        if (title.contains("[J]")) return "Japan";
-        if (title.contains("[W]")) return "World";
-        if (title.contains("(USA)")) return "USA";
-        if (title.contains("(Europe)")) return "Europe";
-        if (title.contains("(Japan)")) return "Japan";
+        Matcher matcher = Pattern.compile("\\(([^)]+)\\)").matcher(title);
+        while (matcher.find()) {
+            String value = matcher.group(1);
+            if (value.equalsIgnoreCase("USA") || value.equalsIgnoreCase("Europe") || value.equalsIgnoreCase("Japan") || value.equalsIgnoreCase("World")) {
+                return value;
+            }
+        }
         return "";
     }
-    
-    private void searchGames(String query) {
-        loadingProgress.setVisibility(View.VISIBLE);
-        statusText.setText("Searching for: " + query);
-        
-        downloadExecutor.execute(() -> {
-            try {
-                List<LolRomGame> games = new ArrayList<>();
-                
-                String searchUrl = "https://lolroms.com/search?q=" + query.replace(" ", "+") + "+Panasonic+3DO";
-                
-                Document doc = Jsoup.connect(searchUrl)
-                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .timeout(30000)
-                    .get();
-                
-                Elements gameLinks = doc.select("a[href*=/rom/]");
-                
-                for (Element link : gameLinks) {
-                    String href = link.attr("href");
-                    String title = link.text().trim();
-                    
-                    if (title.isEmpty()) continue;
-                    
-                    String region = extractRegion(title);
-                    games.add(new LolRomGame(title, href, region));
-                }
-                
-                mainHandler.post(() -> {
-                    gameList.clear();
-                    gameList.addAll(games);
-                    adapter.notifyDataSetChanged();
-                    loadingProgress.setVisibility(View.GONE);
-                    statusText.setText(games.size() + " results for: " + query);
-                });
-                
-            } catch (Exception e) {
-                Log.e(TAG, "Error searching: " + e.getMessage());
-                mainHandler.post(() -> {
-                    loadingProgress.setVisibility(View.GONE);
-                    statusText.setText("Error: " + e.getMessage());
-                });
-            }
-        });
-    }
-    
-    private void downloadGame(LolRomGame game) {
-        ProgressDialog dialog = new ProgressDialog(this);
-        dialog.setTitle("Downloading");
-        dialog.setMessage(game.title + "\n\nConnecting to server...");
-        dialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        dialog.setMax(100);
-        dialog.setCancelable(true);
-        dialog.show();
-        
-        downloadExecutor.execute(() -> {
-            try {
-                mainHandler.post(() -> {
-                    dialog.setMessage(game.title + "\n\nFetching download page...");
-                });
-                
-                Document page = Jsoup.connect(game.pageUrl)
-                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .timeout(30000)
-                    .get();
-                
-                String downloadUrl = findDownloadUrl(page, game.pageUrl);
-                
-                if (downloadUrl == null) {
-                    Elements downloadLinks = page.select("a[href*=.zip], a[href*=download]");
-                    for (Element link : downloadLinks) {
-                        String href = link.attr("href");
-                        if (href.startsWith("http")) {
-                            downloadUrl = href;
-                            break;
-                        }
-                    }
-                }
-                
-                if (downloadUrl == null) {
-                    Element refresh = page.selectFirst("meta[http-equiv=refresh]");
-                    if (refresh != null) {
-                        String content = refresh.attr("content");
-                        Matcher m = Pattern.compile("url=([^;]+)").matcher(content);
-                        if (m.find()) {
-                            downloadUrl = m.group(1);
-                        }
-                    }
-                }
-                
-                if (downloadUrl == null) {
-                    throw new Exception("Could not find download link");
-                }
-                
-                String libraryPath = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
-                    .getString(SettingsActivity.KEY_LIBRARY_FOLDER, "");
-                
-                if (libraryPath.isEmpty()) {
-                    libraryPath = getExternalFilesDir(null).getAbsolutePath() + "/roms";
-                }
-                
-                File downloadDir = new File(libraryPath);
-                if (!downloadDir.exists()) {
-                    downloadDir.mkdirs();
-                }
-                
-                String fileName = downloadUrl.substring(downloadUrl.lastIndexOf('/') + 1);
-                if (!fileName.contains(".")) {
-                    fileName += ".zip";
-                }
-                
-                File outputFile = new File(downloadDir, fileName);
-                
-                mainHandler.post(() -> {
-                    dialog.setMessage(game.title + "\n\nDownloading to:\n" + outputFile.getAbsolutePath());
-                });
-                
-                downloadFile(downloadUrl, outputFile, dialog, game.title);
-                
-                mainHandler.post(() -> {
-                    dialog.dismiss();
-                    Toast.makeText(this, "Download complete: " + fileName, Toast.LENGTH_LONG).show();
-                    statusText.setText("Downloaded: " + game.title);
-                });
-                
-            } catch (Exception e) {
-                Log.e(TAG, "Download error: " + e.getMessage());
-                mainHandler.post(() -> {
-                    dialog.dismiss();
-                    Toast.makeText(this, "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                });
-            }
-        });
-    }
-    
-    private String findDownloadUrl(Document page, String baseUrl) {
-        Elements downloadElements = page.select("a.download, button.download, .download-btn, a[download]");
-        
-        for (Element el : downloadElements) {
-            String href = el.attr("href");
-            if (href.startsWith("http") && (href.contains(".zip") || href.contains("file") || href.contains("download"))) {
-                return href;
-            }
-            
-            String dataHref = el.attr("data-href");
-            if (!dataHref.isEmpty() && dataHref.startsWith("http")) {
-                return dataHref;
-            }
-        }
-        
-        Element meta = page.selectFirst("meta[http-equiv=refresh]");
-        if (meta != null) {
-            String content = meta.attr("content");
-            if (content.toLowerCase().contains("url=")) {
-                int urlStart = content.toLowerCase().indexOf("url=") + 4;
-                String url = content.substring(urlStart).split("[;,]")[0].trim();
-                if (url.startsWith("http")) {
-                    return url;
-                }
-            }
-        }
-        
-        Elements scripts = page.select("script");
-        for (Element script : scripts) {
-            String text = script.html();
-            if (text.contains("window.location") || text.contains("window.location.href")) {
-                Pattern p = Pattern.compile("(window\\.location[^=]*=[\"'])([^\"']+)");
-                Matcher m = p.matcher(text);
-                if (m.find()) {
-                    return m.group(2);
-                }
-            }
-        }
-        
-        return null;
-    }
-    
-    private void downloadFile(String urlStr, File outputFile, ProgressDialog dialog, String gameTitle) throws Exception {
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-        conn.setRequestProperty("Referer", "https://lolroms.com/");
-        conn.connect();
-        
-        int fileLength = conn.getContentLength();
-        dialog.setMax(fileLength > 0 ? fileLength : 100);
-        
-        try (InputStream input = new BufferedInputStream(conn.getInputStream());
-             OutputStream output = new FileOutputStream(outputFile)) {
-            
-            byte[] buffer = new byte[8192];
-            int count;
-            long downloaded = 0;
-            
-            while ((count = input.read(buffer)) != -1) {
-                if (!dialog.isShowing()) {
-                    outputFile.delete();
-                    return;
-                }
-                
-                output.write(buffer, 0, count);
-                downloaded += count;
-                
-                if (fileLength > 0) {
-                    final long finalDownloaded = downloaded;
-                    mainHandler.post(() -> {
-                        dialog.setProgress((int) finalDownloaded);
-                        int percent = (int) (finalDownloaded * 100 / fileLength);
-                        dialog.setMessage(gameTitle + "\n\n" + percent + "% complete");
-                    });
-                }
-            }
-        }
-        
-        conn.disconnect();
-    }
-    
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        downloadExecutor.shutdown();
-        if (igdbService != null) {
-            igdbService.cleanup();
+        if (isFinishing()) {
+            executor.shutdownNow();
         }
     }
 }

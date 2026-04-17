@@ -26,17 +26,13 @@ extern "C" {
 // Global state
 static std::mutex g_emulator_mutex;
 static bool g_emulator_running = false;
+static std::string g_current_game_path;
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_fourdo_android_EmulatorActivity_initEmulator(JNIEnv* env, jobject thiz, jstring gamePath, jstring biosPath) {
     LOGD("Initializing emulator...");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
 
-    if (g_emulator_running) {
-        LOGD("Emulator already running");
-        return JNI_TRUE;
-    }
-    
     const char* path = nullptr;
     const char* bios = nullptr;
     if (gamePath != nullptr) {
@@ -57,25 +53,44 @@ Java_com_fourdo_android_EmulatorActivity_initEmulator(JNIEnv* env, jobject thiz,
             return JNI_FALSE;
         }
     }
+
+    if (g_emulator_running) {
+        bool sameGame = (path != nullptr && g_current_game_path == path);
+        if (sameGame) {
+            // Same game is already loaded — Activity is being re-created for the same
+            // session (e.g. process survived swipe-up). Resume will be triggered by
+            // onResume() -> resumeEmulator(); nothing more to do here.
+            LOGD("Emulator already running same game — skipping re-init");
+            if (path != nullptr) env->ReleaseStringUTFChars(gamePath, path);
+            if (bios != nullptr) env->ReleaseStringUTFChars(biosPath, bios);
+            return JNI_TRUE;
+        }
+        // Different game requested: tear down the existing session first so the
+        // new game gets a clean emulator_init() call.
+        LOGD("Emulator running different game — shutting down before new load");
+        emulator_shutdown();
+        g_emulator_running = false;
+        g_current_game_path.clear();
+    }
     
     int result = emulator_init(path, bios);
-    
+
+    if (result == 0) {
+        g_emulator_running = true;
+        g_current_game_path = (path != nullptr) ? path : "";
+        LOGD("Emulator initialized successfully");
+    } else {
+        LOGE("Emulator initialization failed: %d", result);
+    }
+
     if (path != nullptr) {
         env->ReleaseStringUTFChars(gamePath, path);
     }
-
     if (bios != nullptr) {
         env->ReleaseStringUTFChars(biosPath, bios);
     }
-    
-    if (result == 0) {
-        g_emulator_running = true;
-        LOGD("Emulator initialized successfully");
-        return JNI_TRUE;
-    } else {
-        LOGE("Emulator initialization failed: %d", result);
-        return JNI_FALSE;
-    }
+
+    return (result == 0) ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -86,6 +101,7 @@ Java_com_fourdo_android_EmulatorActivity_shutdownEmulator(JNIEnv* env, jobject t
     if (g_emulator_running) {
         emulator_shutdown();
         g_emulator_running = false;
+        g_current_game_path.clear();
         LOGD("Emulator shut down");
     }
 }

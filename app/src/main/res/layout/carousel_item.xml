@@ -13,7 +13,7 @@
         android:layout_height="350dp"
         android:scaleType="centerCrop"
         android:background="#333355"
-        android:src="@mipmap/ic_launcher"
+        android:src="@drawable/ic_launcher_foreground_source"
         android:elevation="8dp" />
 
     <TextView

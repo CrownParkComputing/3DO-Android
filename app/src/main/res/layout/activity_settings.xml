@@ -185,7 +185,17 @@
                 android:layout_height="wrap_content"
                 android:background="#252547"
                 android:padding="8dp"
-                android:layout_marginBottom="24dp" />
+                android:layout_marginBottom="12dp" />
+
+            <Switch
+                android:id="@+id/debug_overlay_switch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:text="Enable Debug Overlay In Emulator"
+                android:textColor="#FFFFFF"
+                android:thumbTint="#4488FF"
+                android:trackTint="#252547" />
 
             <!-- Data Section -->
             <TextView

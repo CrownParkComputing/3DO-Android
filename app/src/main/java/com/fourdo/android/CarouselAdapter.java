@@ -49,7 +49,7 @@ public class CarouselAdapter extends RecyclerView.Adapter<CarouselAdapter.Carous
         if (item.coverBitmap != null) {
             holder.coverImage.setImageBitmap(item.coverBitmap);
         } else {
-            holder.coverImage.setImageResource(R.mipmap.ic_launcher);
+            holder.coverImage.setImageResource(R.drawable.ic_launcher_foreground_source);
         }
         
         // Set year

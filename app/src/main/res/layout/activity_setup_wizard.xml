@@ -70,29 +70,6 @@
                     android:lineSpacingExtra="8dp"
                     android:layout_marginBottom="16dp" />
 
-                <Button
-                    android:id="@+id/download_games_button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/download_games"
-                    android:textColor="#FFFFFF"
-                    android:backgroundTint="#FF6600"
-                    android:paddingLeft="24dp"
-                    android:paddingRight="24dp"
-                    android:paddingTop="12dp"
-                    android:paddingBottom="12dp"
-                    android:textSize="14sp"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/download_games_hint"
-                    android:textColor="#AAAAAA"
-                    android:textSize="11sp"
-                    android:gravity="center"
-                    android:layout_marginBottom="8dp" />
-
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

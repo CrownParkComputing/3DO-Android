@@ -93,6 +93,12 @@ public class SplashActivity extends Activity {
     }
 
     private void proceedToApp() {
+        String launchGamePath = null;
+        Intent launchIntent = getIntent();
+        if (launchIntent != null && launchIntent.hasExtra("game_path")) {
+            launchGamePath = launchIntent.getStringExtra("game_path");
+        }
+
         // Check if setup has been completed AND paths are still valid
         android.content.SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
         boolean setupCompleted = prefs.getBoolean("setup_completed", false);
@@ -118,9 +124,13 @@ public class SplashActivity extends Activity {
             // Need to run setup wizard
             SetupWizardActivity.start(SplashActivity.this);
         } else {
-            // Setup complete - go to game library
-            Intent intent = new Intent(SplashActivity.this, GameLibraryActivity.class);
-            startActivity(intent);
+            if (launchGamePath != null && !launchGamePath.isEmpty()) {
+                EmulatorActivity.start(SplashActivity.this, launchGamePath);
+            } else {
+                // Setup complete - go to game library
+                Intent intent = new Intent(SplashActivity.this, GameLibraryActivity.class);
+                startActivity(intent);
+            }
         }
         finish();
     }

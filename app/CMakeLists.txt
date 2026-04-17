@@ -33,6 +33,73 @@ find_library(
     z
 )
 
+add_library(
+    chdr-lzma
+    STATIC
+    cpp/third_party/libchdr/deps/lzma-25.01/src/LzmaDec.c
+)
+
+target_include_directories(chdr-lzma PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/third_party/libchdr/deps/lzma-25.01/include
+)
+
+set_target_properties(chdr-lzma PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+add_library(
+    chdr-zstd
+    STATIC
+    cpp/third_party/libchdr/deps/zstd-1.5.7/zstddeclib.c
+)
+
+target_include_directories(chdr-zstd PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/third_party/libchdr/deps/zstd-1.5.7
+)
+
+set_target_properties(chdr-zstd PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+add_library(
+    chdr
+    STATIC
+    cpp/third_party/libchdr/src/libchdr_bitstream.c
+    cpp/third_party/libchdr/src/libchdr_cdrom.c
+    cpp/third_party/libchdr/src/libchdr_chd.c
+    cpp/third_party/libchdr/src/libchdr_codec_cdfl.c
+    cpp/third_party/libchdr/src/libchdr_codec_cdlz.c
+    cpp/third_party/libchdr/src/libchdr_codec_cdzl.c
+    cpp/third_party/libchdr/src/libchdr_codec_cdzs.c
+    cpp/third_party/libchdr/src/libchdr_codec_flac.c
+    cpp/third_party/libchdr/src/libchdr_codec_huff.c
+    cpp/third_party/libchdr/src/libchdr_codec_lzma.c
+    cpp/third_party/libchdr/src/libchdr_codec_zlib.c
+    cpp/third_party/libchdr/src/libchdr_codec_zstd.c
+    cpp/third_party/libchdr/src/libchdr_flac.c
+    cpp/third_party/libchdr/src/libchdr_huffman.c
+)
+
+target_include_directories(chdr PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/third_party/libchdr/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/third_party/libchdr/include/dr_libs
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/third_party/libchdr/deps/lzma-25.01/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/third_party/libchdr/deps/zstd-1.5.7
+)
+
+target_compile_definitions(chdr PRIVATE
+    CHDR_SYSTEM_ZLIB
+    WANT_RAW_DATA_SECTOR=1
+    WANT_SUBCODE=1
+    VERIFY_BLOCK_CRC=1
+)
+
+target_link_libraries(
+    chdr
+    PRIVATE
+    chdr-lzma
+    chdr-zstd
+    ${zlib-lib}
+)
+
+set_target_properties(chdr PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # Add all source files
 add_library(
     native-lib
@@ -81,6 +148,7 @@ add_library(
     cpp/native_core/native_nvram.h
     cpp/native_core/native_bios.h
     cpp/native_core/native_cdrom.h
+    cpp/native_core/native_chd_backend.h
     cpp/native_core/native_audio.h
     cpp/native_core/native_input.h
 )
@@ -88,6 +156,8 @@ add_library(
 # Include directories
 target_include_directories(native-lib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/third_party/libchdr/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/third_party/libchdr/include/dr_libs
 )
 
 # Link all libraries
@@ -97,5 +167,6 @@ target_link_libraries(
     ${android-lib}
     ${egl-lib}
     ${gles-lib}
+    chdr
     ${zlib-lib}
 )

@@ -69,11 +69,11 @@
     <string name="setup_invalid_bios">Invalid BIOS file. Please select a .bin or .rom file.</string>
     
     <!-- Game Step -->
-    <string name="setup_game_title">Step 2: Select Your First Game</string>
-    <string name="setup_game_explanation">Select a game disc image to play!\n\nSupported formats: .cue, .iso, .chd\n\nThe parent folder will be set as your games library.</string>
-    <string name="setup_select_game">Select Game</string>
-    <string name="setup_game_not_selected">No game selected</string>
-    <string name="setup_game_selected">Game: %1$s</string>
-    <string name="setup_game_required">Please select a game to continue</string>
+    <string name="setup_game_title">Step 2: Set Games Library Folder</string>
+    <string name="setup_game_explanation">Select the folder where your 3DO disc images (.cue, .iso, .chd) are stored.\n\nAll games in that folder will appear in your library.</string>
+    <string name="setup_select_game">Select Folder</string>
+    <string name="setup_game_not_selected">No folder selected</string>
+    <string name="setup_game_selected">Folder: %1$s</string>
+    <string name="setup_game_required">Please select a games folder to continue</string>
     <string name="setup_invalid_game">Invalid game file. Please select a .cue, .iso, .chd, or .bin file.</string>
 </resources>

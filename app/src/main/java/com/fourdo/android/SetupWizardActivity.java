@@ -4,7 +4,6 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
@@ -42,8 +41,6 @@ public class SetupWizardActivity extends AppCompatActivity {
     private static final int STEP_WELCOME = 0;
     private static final int STEP_BIOS = 1;
     private static final int STEP_GAME = 2;
-
-    private static final String DOWNLOAD_URL = "https://lolroms.com/Panasonic%20-%203DO";
 
     private int currentStep = STEP_WELCOME;
 
@@ -83,21 +80,14 @@ public class SetupWizardActivity extends AppCompatActivity {
 
         Button selectBiosButton = findViewById(R.id.select_bios_button);
         Button selectGameButton = findViewById(R.id.select_game_button);
-        Button downloadGamesButton = findViewById(R.id.download_games_button);
 
         selectBiosButton.setOnClickListener(v -> openBiosPicker());
         selectGameButton.setOnClickListener(v -> openGamePicker());
-        downloadGamesButton.setOnClickListener(v -> openDownloadUrl());
 
         nextButton.setOnClickListener(v -> goToNextStep());
         backButton.setOnClickListener(v -> goToPreviousStep());
 
         showStep(STEP_WELCOME);
-    }
-
-    private void openDownloadUrl() {
-        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(DOWNLOAD_URL));
-        startActivity(browserIntent);
     }
 
     private void showStep(int step) {
@@ -121,7 +111,7 @@ public class SetupWizardActivity extends AppCompatActivity {
                 break;
             case STEP_GAME:
                 nextButton.setText(R.string.setup_launch);
-                nextButton.setEnabled(selectedGamePath != null && !selectedGamePath.isEmpty());
+                nextButton.setEnabled(selectedGamesFolder != null && !selectedGamesFolder.isEmpty());
                 break;
         }
     }
@@ -139,7 +129,7 @@ public class SetupWizardActivity extends AppCompatActivity {
                 showStep(STEP_GAME);
                 break;
             case STEP_GAME:
-                if (selectedGamePath == null || selectedGamePath.isEmpty()) {
+                if (selectedGamesFolder == null || selectedGamesFolder.isEmpty()) {
                     Toast.makeText(this, R.string.setup_game_required, Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -165,8 +155,8 @@ public class SetupWizardActivity extends AppCompatActivity {
     }
 
     private void openGamePicker() {
-        // During setup, use FileBrowser since library folder may not be set yet
         Intent intent = new Intent(this, FileBrowserActivity.class);
+        intent.putExtra(FileBrowserActivity.EXTRA_SELECT_FOLDER_MODE, true);
         startActivityForResult(intent, REQUEST_GAME);
     }
 
@@ -175,14 +165,12 @@ public class SetupWizardActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (resultCode == RESULT_OK && data != null) {
-            Uri uri = data.getData();
-            if (uri != null) {
-                String path = uri.getPath();
+            String path = data.getStringExtra(FileBrowserActivity.EXTRA_FILE_PATH);
+            if (path != null && !path.isEmpty()) {
                 switch (requestCode) {
                     case REQUEST_BIOS_FILE:
                         if (isValidBiosFile(path)) {
                             selectedBiosPath = path;
-                            // Auto-set parent folder as bios folder
                             File biosFile = new File(path);
                             File parentDir = biosFile.getParentFile();
                             if (parentDir != null) {
@@ -195,20 +183,12 @@ public class SetupWizardActivity extends AppCompatActivity {
                         }
                         break;
                     case REQUEST_GAME:
-                        if (isSupportedGameFile(path)) {
-                            selectedGamePath = path;
-                            // Auto-set parent folder as games library
-                            File gameFile = new File(path);
-                            File parentDir = gameFile.getParentFile();
-                            if (parentDir != null) {
-                                selectedGamesFolder = parentDir.getAbsolutePath();
-                            }
-                            gameStatusText.setText(getString(R.string.setup_game_selected, gameFile.getName()));
+                        File folder = new File(path);
+                        if (folder.isDirectory()) {
+                            selectedGamesFolder = path;
+                            selectedGamePath = null; // no specific game selected at setup time
+                            gameStatusText.setText(getString(R.string.setup_game_selected, path));
                             nextButton.setEnabled(true);
-                        } else if (isArchiveFile(path)) {
-                            // Archive file selected - offer to extract
-                            pendingArchivePath = path;
-                            showExtractArchiveDialog(path);
                         } else {
                             Toast.makeText(this, R.string.setup_invalid_game, Toast.LENGTH_SHORT).show();
                         }
@@ -387,21 +367,7 @@ public class SetupWizardActivity extends AppCompatActivity {
                 new AlertDialog.Builder(SetupWizardActivity.this)
                     .setTitle("Manual Extraction Required")
                     .setMessage("For .7z and .rar files, please use a file manager app to extract the archive first.\n\nThen select the extracted .cue, .iso, or .chd file.")
-                    .setPositiveButton("Open File Manager", (dialog, which) -> {
-                        // Open system file manager
-                        Intent intent = new Intent(Intent.ACTION_VIEW);
-                        Uri uri = Uri.parse("content://media/internal/images/media");
-                        // Fallback to download folder
-                        Intent fallbackIntent = new Intent(Intent.ACTION_VIEW);
-                        fallbackIntent.setData(Uri.parse("file:///storage/emulated/0/Download"));
-                        try {
-                            startActivity(fallbackIntent);
-                        } catch (Exception e) {
-                            Toast.makeText(SetupWizardActivity.this, 
-                                "Please use your file manager to extract archives", Toast.LENGTH_LONG).show();
-                        }
-                    })
-                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(android.R.string.ok, null)
                     .show();
             } else if (result.startsWith("ERROR:")) {
                 Toast.makeText(SetupWizardActivity.this, 
@@ -431,42 +397,29 @@ public class SetupWizardActivity extends AppCompatActivity {
     }
 
     private void saveSettingsAndLaunch() {
-        // Save all settings synchronously
         SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
         editor.putBoolean("setup_completed", true);
         editor.putString(SettingsActivity.KEY_BIOS_PATH, selectedBiosPath);
-        editor.putString(SettingsActivity.KEY_LAST_GAME_PATH, selectedGamePath);
-        // Save auto-detected folders
         if (selectedBiosFolder != null && !selectedBiosFolder.isEmpty()) {
             editor.putString("bios_folder", selectedBiosFolder);
         }
         if (selectedGamesFolder != null && !selectedGamesFolder.isEmpty()) {
             editor.putString(SettingsActivity.KEY_LIBRARY_FOLDER, selectedGamesFolder);
         }
-        // Use commit() for synchronous save instead of apply()
         boolean saved = editor.commit();
-        
+
         if (!saved) {
             Toast.makeText(this, "Failed to save settings", Toast.LENGTH_SHORT).show();
             return;
         }
-        
-        // Verify paths are valid before launching
+
         File biosFile = new File(selectedBiosPath);
-        File gameFile = new File(selectedGamePath);
-        
         if (!biosFile.exists()) {
             Toast.makeText(this, "BIOS file not found: " + selectedBiosPath, Toast.LENGTH_LONG).show();
             return;
         }
-        
-        if (!gameFile.exists()) {
-            Toast.makeText(this, "Game file not found: " + selectedGamePath, Toast.LENGTH_LONG).show();
-            return;
-        }
 
-        // Launch game library after setup
         Intent intent = new Intent(this, GameLibraryActivity.class);
         startActivity(intent);
         finish();

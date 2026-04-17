@@ -11,6 +11,6 @@
         android:adjustViewBounds="true"
         android:contentDescription="@string/app_name"
         android:scaleType="fitCenter"
-        android:src="@drawable/feature_graphic" />
+        android:src="@drawable/splash_image" />
 
 </FrameLayout>

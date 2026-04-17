@@ -49,6 +49,14 @@ public class FileBrowserActivity extends AppCompatActivity {
 
         selectFolderMode = getIntent() != null && getIntent().getBooleanExtra(EXTRA_SELECT_FOLDER_MODE, false);
         selectFolderButton.setVisibility(selectFolderMode ? View.VISIBLE : View.GONE);
+        selectFolderButton.setOnClickListener(v -> {
+            if (currentDir != null) {
+                Intent result = new Intent();
+                result.putExtra(EXTRA_FILE_PATH, currentDir.getAbsolutePath());
+                setResult(Activity.RESULT_OK, result);
+                finish();
+            }
+        });
 
         // Show drives directly on startup
         showDrivesList();

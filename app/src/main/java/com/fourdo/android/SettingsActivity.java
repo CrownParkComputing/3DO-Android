@@ -12,9 +12,11 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -28,6 +30,8 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_BIOS_PATH = "bios_path";
     public static final String KEY_LAST_GAME_PATH = "last_game_path";
     public static final String KEY_LIBRARY_FOLDER = "library_folder";
+    public static final String KEY_LIBRARY_REFRESH_REQUIRED = "library_refresh_required";
+    public static final String KEY_DEBUG_OVERLAY_ENABLED = "debug_overlay_enabled";
     public static final String KEY_VIEW_STYLE = "view_style";
     public static final String KEY_RENDERER_TYPE = "renderer_type";
     public static final String KEY_TEXTURE_FILTERING = "texture_filtering";
@@ -64,6 +68,7 @@ public class SettingsActivity extends AppCompatActivity {
     private Button viewLogsButton;
     private TextView biosPathText;
     private TextView libraryPathText;
+    private Switch debugOverlaySwitch;
     private Spinner viewStyleSpinner;
     private Spinner rendererSpinner;
     private Spinner filteringSpinner;
@@ -87,6 +92,7 @@ public class SettingsActivity extends AppCompatActivity {
         viewLogsButton = findViewById(R.id.view_logs_button);
         biosPathText = findViewById(R.id.bios_path_text);
         libraryPathText = findViewById(R.id.library_path_text);
+        debugOverlaySwitch = findViewById(R.id.debug_overlay_switch);
         viewStyleSpinner = findViewById(R.id.view_style_spinner);
         rendererSpinner = findViewById(R.id.renderer_spinner);
         filteringSpinner = findViewById(R.id.filtering_spinner);
@@ -98,6 +104,7 @@ public class SettingsActivity extends AppCompatActivity {
         setupRendererSpinner();
         setupFilteringSpinner();
         setupRegionSpinner();
+        setupDebugOverlaySwitch();
 
         selectBiosButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -332,6 +339,22 @@ public class SettingsActivity extends AppCompatActivity {
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
+
+    private void setupDebugOverlaySwitch() {
+        if (debugOverlaySwitch == null) {
+            return;
+        }
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        debugOverlaySwitch.setChecked(prefs.getBoolean(KEY_DEBUG_OVERLAY_ENABLED, false));
+        debugOverlaySwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                prefs.edit().putBoolean(KEY_DEBUG_OVERLAY_ENABLED, isChecked).apply();
             }
         });
     }

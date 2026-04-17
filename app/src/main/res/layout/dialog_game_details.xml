@@ -18,7 +18,7 @@
             android:layout_height="280dp"
             android:scaleType="centerCrop"
             android:background="#333355"
-            android:src="@mipmap/ic_launcher" />
+            android:src="@drawable/ic_launcher_foreground_source" />
 
         <Button
             android:id="@+id/change_cover_button"
@@ -106,25 +106,44 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="end">
+            android:gravity="end"
+            android:weightSum="3">
+
+            <Button
+                android:id="@+id/delete_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Delete"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#AA3333"
+                android:layout_marginEnd="8dp"
+                android:maxLines="1"
+                android:ellipsize="end" />
 
             <Button
                 android:id="@+id/cancel_button"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:text="Cancel"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#666666"
-                android:layout_marginEnd="8dp" />
+                android:layout_marginEnd="8dp"
+                android:maxLines="1"
+                android:ellipsize="end" />
 
             <Button
                 android:id="@+id/play_button"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="Play Game"
+                android:layout_weight="1"
+                android:text="Play"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#44AA44"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end" />
 
         </LinearLayout>
 

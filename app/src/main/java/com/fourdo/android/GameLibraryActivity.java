@@ -1,4 +1,6 @@
 
+package com.fourdo.android;
+
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -20,7 +22,15 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.viewpager2.widget.ViewPager2;
 
+import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
+import org.apache.commons.compress.archivers.sevenz.SevenZFile;
+
 import java.io.File;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,6 +39,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class GameLibraryActivity extends AppCompatActivity implements CarouselAdapter.OnGameClickListener {
 
@@ -59,6 +71,7 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
     
     // View mode
     private int viewStyle = SettingsActivity.VIEW_STYLE_GRID_MEDIUM;
+    private volatile boolean libraryImportInProgress = false;
     
     // Cache for game matches
     private Map<String, IgdbService.IgdbGame> gameMatches = new HashMap<>();
@@ -171,63 +184,58 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         startActivity(intent);
     }
     
-    private void autoExtractRoms(File libraryFolder) {
+    private boolean autoExtractRoms(File libraryFolder) {
         File[] archives = libraryFolder.listFiles((dir, name) -> {
             String lower = name.toLowerCase();
             return lower.endsWith(".zip") || lower.endsWith(".7z") || lower.endsWith(".rar");
         });
         
         if (archives == null || archives.length == 0) {
-            return;
+            return false;
         }
+
+        boolean extractedAny = false;
         
         for (File archive : archives) {
-            extractArchive(archive, libraryFolder);
+            extractedAny = extractArchive(archive, libraryFolder) || extractedAny;
         }
+
+        return extractedAny;
     }
     
-    private void extractArchive(File archive, File outputDir) {
+    private boolean extractArchive(File archive, File outputDir) {
         log("Extracting: " + archive.getName());
         
         try {
             String lower = archive.getName().toLowerCase();
-            ProcessBuilder pb;
-            
+            boolean success;
             if (lower.endsWith(".7z")) {
-                pb = new ProcessBuilder("7z", "x", "-y", "-o" + outputDir.getAbsolutePath(), archive.getAbsolutePath());
+                success = extract7zArchive(archive, outputDir);
             } else if (lower.endsWith(".zip")) {
-                pb = new ProcessBuilder("7z", "x", "-y", "-o" + outputDir.getAbsolutePath(), archive.getAbsolutePath());
+                success = extractZipArchive(archive, outputDir);
             } else {
                 log("Unknown archive format: " + archive.getName());
-                return;
+                return false;
             }
-            
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            int result = process.waitFor();
-            
-            if (result == 0) {
+
+            if (success) {
                 log("Extraction successful: " + archive.getName());
-                // Delete archive after successful extraction
-                archive.delete();
+                if (!archive.delete()) {
+                    log("Could not delete extracted archive: " + archive.getAbsolutePath());
+                }
+                return true;
             } else {
                 log("Extraction failed for: " + archive.getName());
+                return false;
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log("Error extracting archive: " + e.getMessage());
+            return false;
         }
     }
     
     @Override
     protected void onResume() {
-        // Auto-extract any new ROM archives
-        if (libraryPath != null && !libraryPath.isEmpty()) {
-            File libraryFolder = new File(libraryPath);
-            if (libraryFolder.isDirectory()) {
-                autoExtractRoms(libraryFolder);
-            }
-        }
-        
         super.onResume();
         
         // Reload view style in case it changed in settings
@@ -237,6 +245,115 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
             viewStyle = newStyle;
             applyViewStyle();
         }
+
+        if (libraryPath != null && !libraryPath.isEmpty()) {
+            File libraryFolder = new File(libraryPath);
+            if (libraryFolder.isDirectory()) {
+                processLibraryDownloadsAsync(libraryFolder);
+            }
+        }
+    }
+
+    private void processLibraryDownloadsAsync(File libraryFolder) {
+        if (libraryImportInProgress) {
+            return;
+        }
+
+        libraryImportInProgress = true;
+        new Thread(() -> {
+            boolean libraryChanged = false;
+            try {
+                libraryChanged = consumeLibraryRefreshFlag() || libraryChanged;
+                libraryChanged = autoExtractRoms(libraryFolder) || libraryChanged;
+            } finally {
+                libraryImportInProgress = false;
+            }
+
+            if (libraryChanged) {
+                runOnUiThread(() -> loadGames(libraryFolder));
+            }
+        }, "library-import").start();
+    }
+
+    private boolean consumeLibraryRefreshFlag() {
+        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        boolean refreshNeeded = prefs.getBoolean(SettingsActivity.KEY_LIBRARY_REFRESH_REQUIRED, false);
+        if (refreshNeeded) {
+            prefs.edit().putBoolean(SettingsActivity.KEY_LIBRARY_REFRESH_REQUIRED, false).apply();
+        }
+        return refreshNeeded;
+    }
+
+    private boolean extractZipArchive(File archive, File destDir) throws IOException {
+        byte[] buffer = new byte[8192];
+
+        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(archive))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                File extractedFile = resolveExtractedFile(destDir, entry.getName());
+                if (entry.isDirectory()) {
+                    if (!extractedFile.isDirectory() && !extractedFile.mkdirs()) {
+                        throw new IOException("Failed to create directory: " + extractedFile.getAbsolutePath());
+                    }
+                    continue;
+                }
+
+                File parent = extractedFile.getParentFile();
+                if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+                    throw new IOException("Failed to create directory: " + parent.getAbsolutePath());
+                }
+
+                try (FileOutputStream fos = new FileOutputStream(extractedFile)) {
+                    int bytesRead;
+                    while ((bytesRead = zis.read(buffer)) != -1) {
+                        fos.write(buffer, 0, bytesRead);
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private boolean extract7zArchive(File archive, File destDir) throws IOException {
+        byte[] buffer = new byte[8192];
+
+        try (SevenZFile sevenZFile = new SevenZFile(archive)) {
+            SevenZArchiveEntry entry;
+            while ((entry = sevenZFile.getNextEntry()) != null) {
+                File extractedFile = resolveExtractedFile(destDir, entry.getName());
+                if (entry.isDirectory()) {
+                    if (!extractedFile.isDirectory() && !extractedFile.mkdirs()) {
+                        throw new IOException("Failed to create directory: " + extractedFile.getAbsolutePath());
+                    }
+                    continue;
+                }
+
+                File parent = extractedFile.getParentFile();
+                if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+                    throw new IOException("Failed to create directory: " + parent.getAbsolutePath());
+                }
+
+                try (FileOutputStream fos = new FileOutputStream(extractedFile)) {
+                    int bytesRead;
+                    while ((bytesRead = sevenZFile.read(buffer)) != -1) {
+                        fos.write(buffer, 0, bytesRead);
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private File resolveExtractedFile(File destDir, String entryName) throws IOException {
+        File destFile = new File(destDir, entryName);
+        String destDirPath = destDir.getCanonicalPath();
+        String destFilePath = destFile.getCanonicalPath();
+        if (!destFilePath.startsWith(destDirPath + File.separator) && !destFilePath.equals(destDirPath)) {
+            throw new IOException("Entry outside target dir: " + entryName);
+        }
+        return destFile;
     }
     
     private void cycleViewStyle() {
@@ -486,16 +603,22 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         Button playButton = view.findViewById(R.id.play_button);
         Button cancelButton = view.findViewById(R.id.cancel_button);
         Button correctGameButton = view.findViewById(R.id.correct_game_button);
+        Button deleteButton = view.findViewById(R.id.delete_button);
 
         // Set cover
         if (item.coverBitmap != null) {
             coverView.setImageBitmap(item.coverBitmap);
         } else {
-            coverView.setImageResource(R.mipmap.ic_launcher);
+            coverView.setImageResource(R.drawable.ic_launcher_foreground_source);
         }
 
         // Set title
-        titleView.setText(item.igdbGame != null ? item.igdbGame.name : item.name);
+        String title = item.igdbGame != null ? item.igdbGame.name : item.name;
+        String fileFormat = getGameFormatLabel(item.filePath);
+        if (!fileFormat.isEmpty()) {
+            title = title + " [" + fileFormat + "]";
+        }
+        titleView.setText(title);
         
         // Set year
         if (item.igdbGame != null && item.igdbGame.releaseDate != null && !item.igdbGame.releaseDate.isEmpty()) {
@@ -528,6 +651,12 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         correctGameButton.setOnClickListener(v -> {
             dialog.dismiss();
             showCorrectGameDialog(item, position);
+        });
+
+        deleteButton.setVisibility(pickMode ? View.GONE : View.VISIBLE);
+        deleteButton.setOnClickListener(v -> {
+            dialog.dismiss();
+            confirmDeleteGame(item);
         });
 
         playButton.setOnClickListener(v -> {
@@ -581,6 +710,135 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         cancelButton.setOnClickListener(v -> dialog.dismiss());
 
         dialog.show();
+    }
+
+    private void confirmDeleteGame(GameItem item) {
+        if (item == null || item.filePath == null || item.filePath.isEmpty()) {
+            Toast.makeText(this, "No game file available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Game")
+                .setMessage("Delete this game from the library?\n\n" + item.name)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Delete", (dialog, which) -> deleteGameFiles(item))
+                .show();
+    }
+
+    private void deleteGameFiles(GameItem item) {
+        File gameFile = new File(item.filePath);
+        List<File> filesToDelete = collectFilesToDelete(gameFile);
+        List<String> failedDeletes = new ArrayList<>();
+
+        for (File file : filesToDelete) {
+            if (file.exists() && !file.delete()) {
+                failedDeletes.add(file.getName());
+            }
+        }
+
+        if (!failedDeletes.isEmpty()) {
+            log("Failed deleting files for " + item.name + ": " + failedDeletes);
+            Toast.makeText(this, "Could not delete: " + String.join(", ", failedDeletes), Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        Toast.makeText(this, "Deleted: " + item.name, Toast.LENGTH_SHORT).show();
+        File root = new File(libraryPath);
+        if (root.isDirectory()) {
+            loadGames(root);
+        } else {
+            gameItems.remove(item);
+            adapter.notifyDataSetChanged();
+            carouselAdapter.notifyDataSetChanged();
+        }
+    }
+
+    private List<File> collectFilesToDelete(File gameFile) {
+        List<File> files = new ArrayList<>();
+        files.add(gameFile);
+
+        String name = gameFile.getName();
+        int dot = name.lastIndexOf('.');
+        String baseName = dot > 0 ? name.substring(0, dot) : name;
+        String lowerName = name.toLowerCase(Locale.ROOT);
+        File parent = gameFile.getParentFile();
+
+        if (parent == null || !parent.isDirectory()) {
+            return files;
+        }
+
+        if (lowerName.endsWith(".cue")) {
+            addCueReferencedFiles(files, gameFile);
+
+            File[] sidecars = parent.listFiles(file -> {
+                if (!file.isFile()) {
+                    return false;
+                }
+                String sidecarName = file.getName();
+                int sidecarDot = sidecarName.lastIndexOf('.');
+                String sidecarBase = sidecarDot > 0 ? sidecarName.substring(0, sidecarDot) : sidecarName;
+                String sidecarLower = sidecarName.toLowerCase(Locale.ROOT);
+                return sidecarBase.equalsIgnoreCase(baseName)
+                        && (sidecarLower.endsWith(".bin")
+                        || sidecarLower.endsWith(".img")
+                        || sidecarLower.endsWith(".iso")
+                        || sidecarLower.endsWith(".sub")
+                        || sidecarLower.endsWith(".ccd")
+                        || sidecarLower.endsWith(".mdf")
+                        || sidecarLower.endsWith(".mds"));
+            });
+            if (sidecars != null) {
+                Collections.addAll(files, sidecars);
+            }
+        }
+
+        return files;
+    }
+
+    private void addCueReferencedFiles(List<File> files, File cueFile) {
+        File parent = cueFile.getParentFile();
+        if (parent == null || !parent.isDirectory()) {
+            return;
+        }
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(cueFile))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String trimmed = line.trim();
+                if (!trimmed.regionMatches(true, 0, "FILE", 0, 4)) {
+                    continue;
+                }
+
+                int firstQuote = trimmed.indexOf('"');
+                int secondQuote = firstQuote >= 0 ? trimmed.indexOf('"', firstQuote + 1) : -1;
+                if (firstQuote < 0 || secondQuote <= firstQuote + 1) {
+                    continue;
+                }
+
+                String referencedName = trimmed.substring(firstQuote + 1, secondQuote);
+                File referencedFile = new File(parent, referencedName);
+                if (referencedFile.isFile() && !files.contains(referencedFile)) {
+                    files.add(referencedFile);
+                }
+            }
+        } catch (IOException e) {
+            log("Failed reading cue file for delete sidecars: " + e.getMessage());
+        }
+    }
+
+    private String getGameFormatLabel(String filePath) {
+        if (filePath == null || filePath.isEmpty()) {
+            return "";
+        }
+
+        String name = new File(filePath).getName();
+        int dot = name.lastIndexOf('.');
+        if (dot < 0 || dot == name.length() - 1) {
+            return "";
+        }
+
+        return name.substring(dot + 1).toUpperCase(Locale.ROOT);
     }
     
     private void showCorrectGameDialog(GameItem item, int position) {

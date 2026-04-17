@@ -34,6 +34,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <android/log.h>
+
+#define CDROM_TAG "4DO-CDROM"
+
+/* Throttled per-command logging: log each unique cmd once, READ_DATA up to 30 times */
+static uint32_t s_cdrom_cmd_seen = 0;   /* bitmask for cmd codes 0x00-0x1F */
+static uint32_t s_cdrom_cmd_seen_hi = 0;/* bitmask for cmd codes 0x80-0x9F */
+static uint32_t s_read_data_count  = 0;
 
 #define MSF_BIAS_IN_SECONDS 2
 #define MSF_BIAS_IN_FRAMES  150
@@ -154,6 +162,29 @@ opera_cdrom_do_cmd(cdrom_device_t *cd_)
 {
   int i;
 
+  /* --- CDROM command tracing --- */
+  {
+    uint8_t _cmd = cd_->cmd[0];
+    /* SPIN_UP (0x02) and EJECT_DISC (0x06) are always logged — they are
+       critical to the disc authentication sequence. All other commands
+       are logged only on their first occurrence. */
+    int _always_log = (_cmd == 0x02 || _cmd == 0x06);
+    int _is_hi   = (_cmd >= 0x80) && (_cmd <= 0x9F);
+    uint32_t _bit = _is_hi ? (1u << (_cmd - 0x80)) : ((_cmd < 0x20) ? (1u << _cmd) : 0u);
+    uint32_t* _seen = _is_hi ? &s_cdrom_cmd_seen_hi : &s_cdrom_cmd_seen;
+
+    if(_always_log || (_bit && !(*_seen & _bit)))
+      {
+        if (!_always_log) *_seen |= _bit;
+        __android_log_print(ANDROID_LOG_INFO, CDROM_TAG,
+          "CDROM cmd=0x%02X xbus_before=0x%02X cmd_bytes=%02X %02X %02X %02X %02X %02X %02X",
+          _cmd, cd_->xbus_status,
+          cd_->cmd[0], cd_->cmd[1], cd_->cmd[2], cd_->cmd[3],
+          cd_->cmd[4], cd_->cmd[5], cd_->cmd[6]);
+      }
+  }
+  /* --------------------------------------- */
+
   cd_->status_len = 0;
 
   cd_->poll        &= ~POLST;
@@ -181,25 +212,21 @@ opera_cdrom_do_cmd(cdrom_device_t *cd_)
         xx xx xx XS (XS = xbus status)
       */
     case CDROM_CMD_SPIN_UP:
-      if((cd_->xbus_status & CDST_TRAY) &&
-         (cd_->xbus_status & CDST_DISC))
-        {
-          cd_->xbus_status |= CDST_SPIN;
-          cd_->xbus_status |= CDST_RDY;
-          cd_->MEI_status   = MEI_CDROM_no_error;
-        }
-      else
-        {
-          cd_->xbus_status |= CDST_ERRO;
-          cd_->xbus_status &= ~CDST_RDY;
-          cd_->MEI_status   = MEI_CDROM_recv_ecc;
-        }
+      /* In emulation the disc is always present — unconditionally succeed.
+         EJECT_DISC now returns 0x01 so the BIOS immediately sends SPIN_UP;
+         we force TRAY+DISC+SPIN+RDY here so the subsequent status check
+         sees a fully-ready drive (0xE1) regardless of prior xbus_status. */
+      cd_->xbus_status  = (CDST_TRAY | CDST_DISC | CDST_SPIN | CDST_RDY);  /* 0xE1 */
+      cd_->MEI_status   = MEI_CDROM_no_error;
+      __android_log_print(ANDROID_LOG_INFO, CDROM_TAG,
+        "SPIN_UP OK xbus_after=0x%02X", cd_->xbus_status);
 
       cd_->status_len = 2;
       cd_->status[0]  = CDROM_CMD_SPIN_UP;
       cd_->status[1]  = cd_->xbus_status;
 
       cd_->poll |= POLST;
+      cd_->poll &= ~POLMA;
       break;
 
       /*
@@ -251,12 +278,11 @@ opera_cdrom_do_cmd(cdrom_device_t *cd_)
         Check Sense, update PollRegister (if medium present)
       */
     case CDROM_CMD_EJECT_DISC:
-      cd_->xbus_status |= CDST_RDY;
-      cd_->xbus_status &= ~CDST_TRAY;
-      cd_->xbus_status &= ~CDST_DISC;
-      cd_->xbus_status &= ~CDST_SPIN;
-      cd_->xbus_status &= ~CDST_2X;
-      cd_->xbus_status &= ~CDST_ERRO;
+      /* Return xbus=0x01 (RDY only, no TRAY/DISC/SPIN) so the BIOS
+         takes the "disc absent" code path and immediately issues SPIN_UP.
+         With disc flags present (0xC1) the BIOS waits for a spontaneous
+         drive-ready notification that our emulation never produces. */
+      cd_->xbus_status  = CDST_RDY;        /* 0x01 */
       cd_->MEI_status   = MEI_CDROM_no_error;
 
       cd_->status_len = 2;
@@ -391,6 +417,16 @@ opera_cdrom_do_cmd(cdrom_device_t *cd_)
           cd_->current_sector           = MSF2LBA(&cd_->disc.msf_current);
           cd_->blocks_requested         = ((cd_->cmd[5] << 8) + cd_->cmd[6]);
 
+          if(s_read_data_count < 100)
+            {
+              s_read_data_count++;
+              __android_log_print(ANDROID_LOG_INFO, CDROM_TAG,
+                "READ_DATA #%u: MSF=%02X:%02X:%02X flags=0x%02X LBA=%u blocks=%u",
+                s_read_data_count,
+                cd_->cmd[1], cd_->cmd[2], cd_->cmd[3], cd_->cmd[4],
+                (unsigned)cd_->current_sector, (unsigned)cd_->blocks_requested);
+            }
+
           CDROM_SET_SECTOR(cd_->current_sector);
           if(cd_->blocks_requested)
             {
@@ -416,6 +452,12 @@ opera_cdrom_do_cmd(cdrom_device_t *cd_)
           cd_->status[1]    = cd_->xbus_status;
           cd_->MEI_status   = MEI_CDROM_recv_ecc;
           cd_->poll        |= POLST;
+          __android_log_print(ANDROID_LOG_WARN, CDROM_TAG,
+            "READ_DATA FAILED: xbus=0x%02X (TRAY=%d DISC=%d SPIN=%d)",
+            cd_->xbus_status,
+            (cd_->xbus_status & CDST_TRAY) ? 1 : 0,
+            (cd_->xbus_status & CDST_DISC) ? 1 : 0,
+            (cd_->xbus_status & CDST_SPIN) ? 1 : 0);
         }
       break;
 

@@ -61,7 +61,7 @@ public class GameGridAdapter extends BaseAdapter {
         if (item.coverBitmap != null) {
             holder.coverView.setImageBitmap(item.coverBitmap);
         } else {
-            holder.coverView.setImageResource(R.mipmap.ic_launcher);
+            holder.coverView.setImageResource(R.drawable.ic_launcher_foreground_source);
         }
 
         return convertView;

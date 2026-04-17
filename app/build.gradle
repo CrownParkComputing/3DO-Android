@@ -53,6 +53,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     // 7zip extraction support
     implementation 'org.apache.commons:commons-compress:1.25.0'
+    implementation 'org.tukaani:xz:1.9'
     // HTML parsing for web scraping
     implementation 'org.jsoup:jsoup:1.17.2'
 }
