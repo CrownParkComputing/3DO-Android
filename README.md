@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Android](https://img.shields.io/badge/Platform-Android%207.0%2B-green)](https://www.android.com)
 
-Android port of 4DO with a Java UI and native emulator/rendering code — a free, open-source emulator designed for broad Android compatibility across phones, tablets, foldables, and handheld devices.
+Android port of 4DO with a Java UI and native emulator/rendering code — a free, open-source emulator for 3DO software with broad Android compatibility across phones, tablets, foldables, and handheld devices.
 
 ## Downloads
 

@@ -5,7 +5,7 @@ layout: default
 
 # 4DO Emulator for Android
 
-A free, open-source Android emulator built from the 4DO lineage, designed for broad compatibility across modern Android phones, tablets, foldables, and handheld devices.
+A free, open-source Android emulator for 3DO software built from the 4DO lineage, designed for broad compatibility across modern Android phones, tablets, foldables, and handheld devices.
 
 ## Downloads
 
@@ -53,7 +53,7 @@ Please refer to the [README.md](https://github.com/CrownParkComputing/4DO-Androi
 
 ## Compatibility
 
-The emulator targets general Android device compatibility while maintaining strong game compatibility. A compatibility list is maintained on the project wiki.
+The emulator targets general Android device compatibility and supports a wide range of 3DO and Tapwave-compatible titles. A compatibility list is maintained on the project wiki.
 
 ## Contributing
 
