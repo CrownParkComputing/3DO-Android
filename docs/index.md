@@ -25,7 +25,6 @@ Previous releases are available on the [Releases page](https://github.com/CrownP
 
 ## Features
 
-- **Accurate emulation** of the Tapwave Zodiac hardware
 - **Accurate 4DO-based emulation** with broad Android device support
 - **On-screen controller** support for touchscreen input
 - **External controller** support via Bluetooth gamepads
@@ -44,7 +43,7 @@ Previous releases are available on the [Releases page](https://github.com/CrownP
 ## Quick Start
 
 1. Launch the app and complete the initial setup wizard.
-2. Place your Zodiac ROM files (`.iso`, `.bin`, or `.img`) in a folder on your device.
+2. Place your supported ROM files (`.iso`, `.bin`, or `.img`) in a folder on your device.
 3. Use the built-in file browser to locate and load your ROM.
 4. Tap the screen to reveal the on-screen controls if needed.
 
