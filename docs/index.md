@@ -5,18 +5,19 @@ layout: default
 
 # 4DO Emulator for Android
 
-A free, open-source emulator for the [Tapwave Zodiac](https://en.wikipedia.org/wiki/Tapwave_Zodiac) handheld gaming console, running on Android devices.
+A free, open-source Android emulator built from the 4DO lineage, designed for broad compatibility across modern Android phones, tablets, foldables, and handheld devices.
 
 ## Downloads
 
 ### Latest Release
+[![Get it on Google Play](https://img.shields.io/badge/Get_it_on-Google_Play-414141?logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=com.fourdo.android)
 [![Release](https://img.shields.io/github/v/release/CrownParkComputing/4DO-Android?label=Version)](https://github.com/CrownParkComputing/4DO-Android/releases/latest)
 
 | Platform | File | Architecture |
 |----------|------|--------------|
 | Android | [`4DO-Emulator-release.aab`](https://github.com/CrownParkComputing/4DO-Android/releases/latest/download/4DO-Emulator-release.aab) | ARM64-v8a |
 
-> **Note:** The Android App Bundle (AAB) can be installed on any Android device running Android 7.0 (API 24) or later.
+> **Note:** Available on Google Play and as a downloadable AAB. Android 7.0 (API 24) or later is required.
 
 ### Release History
 
@@ -25,6 +26,7 @@ Previous releases are available on the [Releases page](https://github.com/CrownP
 ## Features
 
 - **Accurate emulation** of the Tapwave Zodiac hardware
+- **Accurate 4DO-based emulation** with broad Android device support
 - **On-screen controller** support for touchscreen input
 - **External controller** support via Bluetooth gamepads
 - **Software and hardware rendering** options
@@ -33,10 +35,10 @@ Previous releases are available on the [Releases page](https://github.com/CrownP
 
 ## Installation
 
-1. Download the latest `4DO-Emulator-release.aab` from the [Releases page](https://github.com/CrownParkComputing/4DO-Android/releases/latest).
-2. Transfer the file to your Android device.
-3. Enable "Install from unknown sources" in your device settings if prompted.
-4. Open the AAB file and follow the on-screen prompts to install.
+1. Install from [Google Play](https://play.google.com/store/apps/details?id=com.fourdo.android), or download the latest `4DO-Emulator-release.aab` from the [Releases page](https://github.com/CrownParkComputing/4DO-Android/releases/latest).
+2. If sideloading the AAB, transfer the file to your Android device.
+3. If sideloading, enable "Install from unknown sources" in your device settings if prompted.
+4. Open the app and follow the on-screen setup prompts.
 5. Launch **4DO Emulator** from your app drawer.
 
 ## Quick Start
@@ -52,7 +54,7 @@ Please refer to the [README.md](https://github.com/CrownParkComputing/4DO-Androi
 
 ## Compatibility
 
-The emulator is compatible with most Zodiac games. A compatibility list is maintained on the project wiki.
+The emulator targets general Android device compatibility while maintaining strong game compatibility. A compatibility list is maintained on the project wiki.
 
 ## Contributing
 
@@ -65,7 +67,8 @@ This project is licensed under the MIT License — see the [LICENSE](https://git
 ## Acknowledgements
 
 - Original 4DO emulator by [Lionello "Lion" Vella](https://www.tapatalk.com/groups/tapwave)
-- Tapwave Zodiac community
+- [Opera](https://github.com/libretro/opera-libretro) contributors and community
+- Tapwave Zodiac and broader 3DO preservation community
 - All contributors
 
 ## Links

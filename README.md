@@ -4,11 +4,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Android](https://img.shields.io/badge/Platform-Android%207.0%2B-green)](https://www.android.com)
 
-Android port of 4DO with a Java UI and native emulator/rendering code — a free, open-source emulator for the [Tapwave Zodiac](https://en.wikipedia.org/wiki/Tapwave_Zodiac) handheld gaming console.
+Android port of 4DO with a Java UI and native emulator/rendering code — a free, open-source emulator designed for broad Android compatibility across phones, tablets, foldables, and handheld devices.
 
 ## Downloads
 
 ### Latest Release
+**[Get it on Google Play](https://play.google.com/store/apps/details?id=com.fourdo.android)**
+
+or
+
 **[Download 4DO-Emulator-release.aab](https://github.com/CrownParkComputing/4DO-Android/releases/latest/download/4DO-Emulator-release.aab)**
 
 Requires Android 7.0 (API 24) or later.
@@ -67,7 +71,7 @@ GitHub Actions build configuration lives in `.github/workflows/android-build.yml
 
 ## Features
 
-- **Accurate emulation** of the Tapwave Zodiac hardware
+- **Accurate 4DO-based emulation** with broad Android device support
 - **On-screen controller** support for touchscreen input
 - **External controller** support via Bluetooth gamepads
 - **Software and hardware rendering** options (OpenGL/Vulkan)
@@ -81,5 +85,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Acknowledgements
 
 - Original 4DO emulator by [Lionello "Lion" Vella](https://www.tapatalk.com/groups/tapwave)
-- Tapwave Zodiac community
+- [Opera](https://github.com/libretro/opera-libretro) contributors and community
+- Tapwave Zodiac and broader 3DO preservation community
 - All contributors
