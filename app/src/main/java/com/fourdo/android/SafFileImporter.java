@@ -167,6 +167,15 @@ final class SafFileImporter {
             throw new IOException("Failed to create directory: " + parent.getAbsolutePath());
         }
 
+        if (parent != null) {
+            File canonicalParent = parent.getCanonicalFile();
+            File canonicalDest = destFile.getCanonicalFile();
+            String parentPath = canonicalParent.getPath() + File.separator;
+            if (!canonicalDest.getPath().startsWith(parentPath)) {
+                throw new IOException("Invalid destination file path");
+            }
+        }
+
         try (InputStream inputStream = resolver.openInputStream(uri);
              FileOutputStream outputStream = new FileOutputStream(destFile)) {
             if (inputStream == null) {
@@ -235,7 +244,11 @@ final class SafFileImporter {
     }
 
     private static String sanitizeName(String name) {
-        String sanitized = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+        String raw = name == null ? "" : name.trim();
+        if (raw.contains("..") || raw.contains("/") || raw.contains("\\")) {
+            throw new IllegalArgumentException("Invalid file name");
+        }
+        String sanitized = raw.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
         return sanitized.isEmpty() ? "imported" : sanitized;
     }
 
