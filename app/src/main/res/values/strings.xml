@@ -50,8 +50,6 @@
     <string name="setup_welcome_title">Welcome to 4DO Android!</string>
     <string name="setup_welcome_text">This wizard will help you set up the 3DO emulator.\n\nYou will need:</string>
     <string name="setup_welcome_steps">1. A 3DO BIOS file (.bin or .rom)\n2. A game disc image to play\n\nThe parent folders will be auto-detected for future use.</string>
-    <string name="download_games">Download 3DO Games</string>
-    <string name="download_games_hint">Get 3DO games from lolroms.com</string>
     <string name="supported_formats">Supported: ZIP, 7Z, RAR, CUE, ISO, CHD, BIN</string>
     <string name="extract_archive">Extract Archive</string>
     <string name="extracting">Extracting…</string>

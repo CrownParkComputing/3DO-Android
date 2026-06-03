@@ -145,6 +145,16 @@ public:
     static uint32_t opera_cdrom_get_size_cb();
     static void     opera_cdrom_set_sector_cb(uint32_t sector);
     static void     opera_cdrom_read_sector_cb(void* buf);
+    static uint32_t opera_cdrom_get_track_count_cb();
+    static int      opera_cdrom_get_track_info_cb(uint32_t index,
+                                                  uint8_t* track_number,
+                                                  uint8_t* is_audio,
+                                                  uint32_t* start_sector,
+                                                  uint32_t* sector_count);
+    static int      opera_cdrom_play_audio_range_cb(uint32_t start_sector, uint32_t end_sector);
+    static int      opera_cdrom_play_audio_track_cb(uint32_t start_track, uint32_t end_track);
+    static void     opera_cdrom_pause_audio_cb(uint8_t paused);
+    static void     opera_cdrom_stop_audio_cb();
 
     // Static libopera audio callback helper
     static void opera_push_audio(uint32_t packed);

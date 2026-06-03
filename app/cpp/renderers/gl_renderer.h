@@ -90,5 +90,8 @@ private:
     
 public:
     void setFlipVertical(bool enabled) override;
-    void setFlip(bool flipX, bool flipY);
+    void setFlip(bool flipX, bool flipY) override;
+    // GL path is already correctly oriented via Android's EGL surface handling;
+    // setRotation is a no-op here.
+    void setRotation(int degrees) override;
 };

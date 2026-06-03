@@ -35,6 +35,16 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_RENDERER_TYPE = "renderer_type";
     public static final String KEY_TEXTURE_FILTERING = "texture_filtering";
     public static final String KEY_REGION = "region";
+    public static final String KEY_BEZEL_ENABLED = "bezel_enabled";
+    public static final String KEY_DISPLAY_ROTATION = "display_rotation";
+
+    // Display rotation modes. 0 = follow device orientation (the default);
+    // 1..4 = force a fixed 0/90/180/270 deg rotation in the shader.
+    public static final int ROTATION_AUTO = 0;
+    public static final int ROTATION_FIXED_0 = 1;
+    public static final int ROTATION_FIXED_90 = 2;
+    public static final int ROTATION_FIXED_180 = 3;
+    public static final int ROTATION_FIXED_270 = 4;
 
     public static final int VIEW_STYLE_GRID_SMALL = 0;
     public static final int VIEW_STYLE_GRID_MEDIUM = 1;
@@ -43,7 +53,6 @@ public class SettingsActivity extends AppCompatActivity {
     
     // Renderer types - must match native code
     public static final int RENDERER_AUTO = 0;
-    public static final int RENDERER_OPENGL_ES = 1;
     public static final int RENDERER_VULKAN = 2;
     public static final int RENDERER_SOFTWARE = 3;
     
@@ -68,6 +77,7 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView biosPathText;
     private TextView libraryPathText;
     private Switch debugOverlaySwitch;
+    private Switch bezelSwitch;
     private Spinner viewStyleSpinner;
     private Spinner rendererSpinner;
     private Spinner filteringSpinner;
@@ -92,6 +102,7 @@ public class SettingsActivity extends AppCompatActivity {
         biosPathText = findViewById(R.id.bios_path_text);
         libraryPathText = findViewById(R.id.library_path_text);
         debugOverlaySwitch = findViewById(R.id.debug_overlay_switch);
+        bezelSwitch = findViewById(R.id.bezel_switch);
         viewStyleSpinner = findViewById(R.id.view_style_spinner);
         rendererSpinner = findViewById(R.id.renderer_spinner);
         filteringSpinner = findViewById(R.id.filtering_spinner);
@@ -104,6 +115,7 @@ public class SettingsActivity extends AppCompatActivity {
         setupFilteringSpinner();
         setupRegionSpinner();
         setupDebugOverlaySwitch();
+        setupBezelSwitch();
 
         selectBiosButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -231,39 +243,22 @@ public class SettingsActivity extends AppCompatActivity {
     }
     
     private void setupRendererSpinner() {
-        String[] renderers = {"Automatic", "OpenGL ES", "Vulkan", "Software"};
+        String[] renderers = {"Vulkan", "Software"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, renderers);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         rendererSpinner.setAdapter(adapter);
         
         // Load saved preference
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        int savedRenderer = normalizeRendererType(prefs.getInt(KEY_RENDERER_TYPE, RENDERER_AUTO));
-        int selection = 0;
-        if (savedRenderer == RENDERER_OPENGL_ES) {
-            selection = 1;
-        } else if (savedRenderer == RENDERER_VULKAN) {
-            selection = 2;
-        } else if (savedRenderer == RENDERER_SOFTWARE) {
-            selection = 3;
-        }
-        rendererSpinner.setSelection(selection);
+        int savedRenderer = normalizeRendererType(prefs.getInt(KEY_RENDERER_TYPE, RENDERER_VULKAN));
+        rendererSpinner.setSelection(savedRenderer == RENDERER_SOFTWARE ? 1 : 0);
         prefs.edit().putInt(KEY_RENDERER_TYPE, savedRenderer).apply();
         
         rendererSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                int rendererType;
-                if (position == 1) {
-                    rendererType = RENDERER_OPENGL_ES;
-                } else if (position == 2) {
-                    rendererType = RENDERER_VULKAN;
-                } else if (position == 3) {
-                    rendererType = RENDERER_SOFTWARE;
-                } else {
-                    rendererType = RENDERER_AUTO;
-                }
+                int rendererType = position == 1 ? RENDERER_SOFTWARE : RENDERER_VULKAN;
                 prefs.edit().putInt(KEY_RENDERER_TYPE, rendererType).apply();
             }
 
@@ -274,19 +269,13 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private int normalizeRendererType(int rendererType) {
-        if (rendererType == RENDERER_AUTO) {
-            return RENDERER_AUTO;
-        }
-        if (rendererType == RENDERER_OPENGL_ES) {
-            return RENDERER_OPENGL_ES;
-        }
         if (rendererType == RENDERER_VULKAN) {
             return RENDERER_VULKAN;
         }
         if (rendererType == RENDERER_SOFTWARE) {
             return RENDERER_SOFTWARE;
         }
-        return RENDERER_AUTO;
+        return RENDERER_VULKAN;
     }
     
     private void setupFilteringSpinner() {
@@ -357,6 +346,22 @@ public class SettingsActivity extends AppCompatActivity {
         });
     }
 
+    private void setupBezelSwitch() {
+        if (bezelSwitch == null) {
+            return;
+        }
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        bezelSwitch.setChecked(prefs.getBoolean(KEY_BEZEL_ENABLED, true));
+        bezelSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                prefs.edit().putBoolean(KEY_BEZEL_ENABLED, isChecked).apply();
+            }
+        });
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -379,11 +384,15 @@ public class SettingsActivity extends AppCompatActivity {
         if (requestCode == REQUEST_LIBRARY_PICKER && resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
             if (uri != null) {
+                Toast.makeText(this, "Importing library...", Toast.LENGTH_SHORT).show();
                 new Thread(() -> {
                     try {
                         SafFileImporter.ImportResult result = SafFileImporter.importLibraryTree(this, uri);
                         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                        prefs.edit().putString(KEY_LIBRARY_FOLDER, result.path).apply();
+                        prefs.edit()
+                                .putString(KEY_LIBRARY_FOLDER, result.path)
+                                .putBoolean(KEY_LIBRARY_REFRESH_REQUIRED, true)
+                                .apply();
                         runOnUiThread(() -> {
                             refreshLibraryPathText();
                             Toast.makeText(this, "Imported " + result.importedFileCount + " library files", Toast.LENGTH_SHORT).show();

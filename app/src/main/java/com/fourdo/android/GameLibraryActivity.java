@@ -2,9 +2,11 @@
 package com.fourdo.android;
 
 import android.app.AlertDialog;
+import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -12,8 +14,8 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.GridView;
-import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -47,6 +49,7 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
     private static final String TAG = "GameLibrary";
     private static final Pattern VERSION_SUFFIX_PATTERN = Pattern.compile("(?i)\\bv\\d+(?:\\.\\d+)*\\b");
     private static final int MAX_CONCURRENT_IGDB_REQUESTS = 3;
+    private static final int REQUEST_LIBRARY_PICKER = 100;
 
     public static final String EXTRA_LIBRARY_PATH = "library_path";
     public static final String EXTRA_PICK_MODE = "pick_mode";
@@ -58,9 +61,8 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
     private ImageButton settingsButton;
     private ImageButton searchButton;
     private ImageButton viewToggleBtn;
-    private ImageButton downloadButton;
-    
-    private static final String DOWNLOAD_URL = "https://lolroms.com/Panasonic%20-%203DO";
+    private Button refreshButton;
+    private Button changeLibraryButton;
 
     private final List<GameItem> gameItems = new ArrayList<>();
     private GameGridAdapter adapter;
@@ -105,10 +107,8 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         settingsButton = findViewById(R.id.settings_button);
         searchButton = findViewById(R.id.search_button);
         viewToggleBtn = findViewById(R.id.view_toggle_button);
-        downloadButton = findViewById(R.id.download_button);
-        
-        // Download button click handler
-        downloadButton.setOnClickListener(v -> showDownloadDialog());
+        refreshButton = findViewById(R.id.refresh_button);
+        changeLibraryButton = findViewById(R.id.change_library_button);
 
         igdbService = IgdbService.getInstance(this);
 
@@ -118,6 +118,8 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
 
         // View toggle button
         viewToggleBtn.setOnClickListener(v -> cycleViewStyle());
+        refreshButton.setOnClickListener(v -> refreshLibrary());
+        changeLibraryButton.setOnClickListener(v -> openLibraryPicker());
 
         log("GameLibraryActivity onCreate");
 
@@ -178,10 +180,73 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
 
         loadGames(root);
     }
-    
-    private void showDownloadDialog() {
-        Intent intent = new Intent(this, DownloadSourceActivity.class);
-        startActivity(intent);
+
+    private void openLibraryPicker() {
+        Intent intent = SafFileImporter.createOpenDocumentTreeIntent();
+        startActivityForResult(intent, REQUEST_LIBRARY_PICKER);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode != REQUEST_LIBRARY_PICKER) {
+            return;
+        }
+
+        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
+            Toast.makeText(this, "Library unchanged", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Uri uri = data.getData();
+        loadingProgress.setVisibility(View.VISIBLE);
+        statusText.setText("Importing library...");
+        statusText.setVisibility(View.VISIBLE);
+        Toast.makeText(this, "Importing library...", Toast.LENGTH_SHORT).show();
+
+        new Thread(() -> {
+            try {
+                SafFileImporter.ImportResult result = SafFileImporter.importLibraryTree(this, uri);
+                SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+                prefs.edit()
+                        .putString(SettingsActivity.KEY_LIBRARY_FOLDER, result.path)
+                        .putBoolean(SettingsActivity.KEY_LIBRARY_REFRESH_REQUIRED, true)
+                        .apply();
+
+                libraryPath = result.path;
+                File root = new File(libraryPath);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Imported " + result.importedFileCount + " library files", Toast.LENGTH_SHORT).show();
+                    loadGames(root);
+                });
+            } catch (Exception e) {
+                log("Library import failed: " + e.getMessage());
+                runOnUiThread(() -> {
+                    loadingProgress.setVisibility(View.GONE);
+                    statusText.setText("Library import failed: " + e.getMessage());
+                    statusText.setVisibility(View.VISIBLE);
+                    Toast.makeText(this, "Library import failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }, "game-library-picker-import").start();
+    }
+
+    private void refreshLibrary() {
+        if (libraryPath == null || libraryPath.isEmpty()) {
+            Toast.makeText(this, R.string.library_not_set, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        File root = new File(libraryPath);
+        if (!root.isDirectory()) {
+            Toast.makeText(this, R.string.library_not_set, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Toast.makeText(this, "Refreshing library", Toast.LENGTH_SHORT).show();
+        processLibraryDownloadsAsync(root);
+        loadGames(root);
     }
     
     private boolean autoExtractRoms(File libraryFolder) {
@@ -244,6 +309,20 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         if (newStyle != viewStyle) {
             viewStyle = newStyle;
             applyViewStyle();
+        }
+
+        String savedLibraryPath = prefs.getString(SettingsActivity.KEY_LIBRARY_FOLDER, "");
+        if (savedLibraryPath != null && !savedLibraryPath.isEmpty() && !savedLibraryPath.equals(libraryPath)) {
+            log("Library path changed: " + savedLibraryPath);
+            libraryPath = savedLibraryPath;
+            File newLibraryFolder = new File(libraryPath);
+            if (newLibraryFolder.isDirectory()) {
+                statusText.setVisibility(View.GONE);
+                gameGridView.setVisibility(View.VISIBLE);
+                processLibraryDownloadsAsync(newLibraryFolder);
+                loadGames(newLibraryFolder);
+            }
+            return;
         }
 
         if (libraryPath != null && !libraryPath.isEmpty()) {
@@ -457,9 +536,59 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
 
     private boolean isSupportedGameFile(File file) {
         String name = file.getName().toLowerCase();
-        // CUE files are the master for CUE/BIN pairs, exclude BIN to avoid duplicates
+        // CUE files are the master for CUE/BIN pairs. Show a BIN only when no
+        // CUE in the same folder points at it, so direct BIN libraries still appear.
         // CHD and ISO are standalone formats
-        return name.endsWith(".cue") || name.endsWith(".iso") || name.endsWith(".chd");
+        return name.endsWith(".cue")
+                || name.endsWith(".iso")
+                || name.endsWith(".chd")
+                || (name.endsWith(".bin") && !hasCueForBin(file));
+    }
+
+    private boolean hasCueForBin(File binFile) {
+        File parent = binFile.getParentFile();
+        if (parent == null || !parent.isDirectory()) {
+            return false;
+        }
+
+        String binName = binFile.getName();
+        int dot = binName.lastIndexOf('.');
+        String baseName = dot > 0 ? binName.substring(0, dot) : binName;
+        File sameBaseCue = new File(parent, baseName + ".cue");
+        if (sameBaseCue.isFile()) {
+            return true;
+        }
+
+        File[] cueFiles = parent.listFiles(file -> file.isFile() && file.getName().toLowerCase(Locale.ROOT).endsWith(".cue"));
+        if (cueFiles == null) {
+            return false;
+        }
+
+        for (File cueFile : cueFiles) {
+            if (cueReferencesFile(cueFile, binName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean cueReferencesFile(File cueFile, String fileName) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(cueFile))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String trimmed = line.trim();
+                if (!trimmed.regionMatches(true, 0, "FILE", 0, 4)) {
+                    continue;
+                }
+                String referencedName = parseCueFileReference(trimmed);
+                if (referencedName != null && new File(referencedName).getName().equalsIgnoreCase(fileName)) {
+                    return true;
+                }
+            }
+        } catch (IOException e) {
+            log("Failed reading cue file for BIN pairing: " + e.getMessage());
+        }
+        return false;
     }
 
     private String getGameName(String fileName) {
@@ -786,7 +915,9 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
                         || sidecarLower.endsWith(".sub")
                         || sidecarLower.endsWith(".ccd")
                         || sidecarLower.endsWith(".mdf")
-                        || sidecarLower.endsWith(".mds"));
+                        || sidecarLower.endsWith(".mds")
+                        || sidecarLower.endsWith(".wav")
+                        || sidecarLower.endsWith(".wv"));
             });
             if (sidecars != null) {
                 Collections.addAll(files, sidecars);
@@ -810,14 +941,12 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
                     continue;
                 }
 
-                int firstQuote = trimmed.indexOf('"');
-                int secondQuote = firstQuote >= 0 ? trimmed.indexOf('"', firstQuote + 1) : -1;
-                if (firstQuote < 0 || secondQuote <= firstQuote + 1) {
+                String referencedName = parseCueFileReference(trimmed);
+                if (referencedName == null || referencedName.isEmpty()) {
                     continue;
                 }
 
-                String referencedName = trimmed.substring(firstQuote + 1, secondQuote);
-                File referencedFile = new File(parent, referencedName);
+                File referencedFile = new File(parent, referencedName.replace('\\', File.separatorChar));
                 if (referencedFile.isFile() && !files.contains(referencedFile)) {
                     files.add(referencedFile);
                 }
@@ -825,6 +954,28 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         } catch (IOException e) {
             log("Failed reading cue file for delete sidecars: " + e.getMessage());
         }
+    }
+
+    private String parseCueFileReference(String trimmedLine) {
+        if (trimmedLine == null || !trimmedLine.regionMatches(true, 0, "FILE", 0, 4)) {
+            return null;
+        }
+
+        String rest = trimmedLine.substring(4).trim();
+        if (rest.isEmpty()) {
+            return null;
+        }
+
+        if (rest.charAt(0) == '"') {
+            int secondQuote = rest.indexOf('"', 1);
+            if (secondQuote <= 1) {
+                return null;
+            }
+            return rest.substring(1, secondQuote);
+        }
+
+        int lastSpace = rest.lastIndexOf(' ');
+        return lastSpace > 0 ? rest.substring(0, lastSpace).trim() : rest;
     }
 
     private String getGameFormatLabel(String filePath) {

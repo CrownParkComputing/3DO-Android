@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -18,6 +19,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ArrayAdapter;
@@ -44,11 +46,13 @@ public class EmulatorActivity extends AppCompatActivity {
 
     private ImageButton pauseButton;
     private ImageButton controllerMapButton;
+    private ImageButton screenshotButton;
     
     // Quick toolbar buttons
     private android.widget.ProgressBar loadingOverlaySpinner;
     private View loadingOverlay;
     private TextView loadingText;
+    private ImageView emulatorBezel;
     private Button cdButton;
     private Button aspectRatioButton;
     private Button rendererButton;
@@ -76,6 +80,7 @@ public class EmulatorActivity extends AppCompatActivity {
     private boolean nearestFiltering = false;  // false = linear, true = nearest
     private int antiAliasingMode = 0;          // 0=off,1=low,2=high
     private boolean crtShaderEnabled = false;
+    private boolean bezelEnabled = true;
     private int resolutionScale = 0;
     private int outputResolutionPreset = 0;
     private boolean flipVertical = false;
@@ -120,6 +125,8 @@ public class EmulatorActivity extends AppCompatActivity {
     private void bindViews() {
         pauseButton = findViewById(R.id.pause_button);
         controllerMapButton = findViewById(R.id.controller_map_button);
+        screenshotButton = findViewById(R.id.screenshot_button);
+        emulatorBezel = findViewById(R.id.emulator_bezel);
         loadingOverlay = findViewById(R.id.loading_overlay);
         loadingText = findViewById(R.id.loading_text);
         cdButton = null;
@@ -135,6 +142,7 @@ public class EmulatorActivity extends AppCompatActivity {
 
     private void initializeUiState() {
         loadSettings();
+        applyBezelVisibility();
         applyDebugModeUi();
         updateButtonLabels();
         startFpsCounter();
@@ -153,6 +161,88 @@ public class EmulatorActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 showPauseMenu();
+            }
+        });
+
+        screenshotButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                saveScreenshot();
+            }
+        });
+    }
+
+    /**
+     * Captures the emulator surface and saves a PNG to Pictures/4DO/. The
+     * capture includes everything the user is currently seeing on screen:
+     * the framebuffer, the bezel, and the overlay buttons. This is the
+     * "what is on screen right now" shot we use to confirm whether the
+     * rotation/aspect/letterbox output matches the user's intent.
+     */
+    private static final int REQUEST_SCREENSHOT_PERMISSION = 5;
+
+    private void saveScreenshot() {
+        if (android.os.Build.VERSION.SDK_INT <= 28) {
+            if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{
+                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                        REQUEST_SCREENSHOT_PERMISSION);
+                Toast.makeText(this, "Grant storage permission to save screenshots",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+        if (emulatorSurfaceView == null) {
+            Toast.makeText(this, "Screenshot failed: no surface", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final View root = findViewById(android.R.id.content);
+        if (root == null) {
+            Toast.makeText(this, "Screenshot failed: no root view", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        // Slightly dim the buttons so they don't dominate the saved image
+        // (the user is taking this shot to inspect the *game*, not the UI).
+        Toast.makeText(this, "Saving screenshot...", Toast.LENGTH_SHORT).show();
+        root.post(new Runnable() {
+            @Override
+            public void run() {
+                Bitmap bitmap = Bitmap.createBitmap(root.getWidth(), root.getHeight(),
+                        Bitmap.Config.ARGB_8888);
+                android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+                root.draw(canvas);
+                File outDir = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                        android.os.Environment.DIRECTORY_PICTURES), "4DO");
+                if (!outDir.exists()) outDir.mkdirs();
+                String ts = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+                        .format(new java.util.Date());
+                int rot = getEffectiveRotation();
+                String rotTag = "rot" + rot + "_" + (aspectRatio16by9 ? "16x9" : "4x3");
+                File outFile = new File(outDir, "4DO_" + rotTag + "_" + ts + ".png");
+                // Burn the current rotation/aspect into the top-left of the
+                // image as a small label so the saved PNG self-describes
+                // (no need to remember which slot you were on).
+                android.graphics.Paint labelPaint = new android.graphics.Paint();
+                labelPaint.setColor(0xFF00FF00);
+                labelPaint.setTextSize(48);
+                labelPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
+                labelPaint.setAntiAlias(true);
+                labelPaint.setShadowLayer(2, 1, 1, 0xFF000000);
+                canvas.drawText("4DO " + rotTag, 16, 56, labelPaint);
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(outFile)) {
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                    fos.flush();
+                    Toast.makeText(EmulatorActivity.this,
+                            "Saved: " + outFile.getAbsolutePath(),
+                            Toast.LENGTH_LONG).show();
+                } catch (java.io.IOException e) {
+                    Toast.makeText(EmulatorActivity.this,
+                            "Screenshot failed: " + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                } finally {
+                    bitmap.recycle();
+                }
             }
         });
     }
@@ -192,9 +282,18 @@ public class EmulatorActivity extends AppCompatActivity {
         setCrtShaderEnabled(crtShaderEnabled);
         setResolutionScale(resolutionScale);
         setOutputResolutionPreset(outputResolutionPreset);
+        // No flips: the framebuffer is uploaded with its natural orientation and
+        // the Vulkan IDENTITY pre-transform lets the compositor handle display
+        // rotation. The old flipX=true was a workaround for the previous rotated
+        // pipeline and now shows the image horizontally mirrored.
         setFlipVertical(false);
         setFlipX(false);
         setFlipY(false);
+        // Apply display rotation. The user can pick a fixed rotation in
+        // Settings, otherwise we follow the device orientation (which is
+        // already the right answer for the GL renderer; the Vulkan renderer
+        // needs the explicit value applied in the shader).
+        setRotation(getEffectiveRotation());
         initRenderer(width, height);
         setSurface(surface);
     }
@@ -386,17 +485,9 @@ public class EmulatorActivity extends AppCompatActivity {
         rendererLabel.setText("Renderer");
         root.addView(rendererLabel);
         Spinner rendererSpinner = new Spinner(this);
-        String[] rendererOptions = {"Automatic", "OpenGL ES", "Vulkan", "Software"};
+        String[] rendererOptions = {"Vulkan", "Software"};
         rendererSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, rendererOptions));
-        int rendererSelection = 0;
-        if (currentRenderer == RENDERER_OPENGL_ES) {
-            rendererSelection = 1;
-        } else if (currentRenderer == RENDERER_VULKAN) {
-            rendererSelection = 2;
-        } else if (currentRenderer == RENDERER_SOFTWARE) {
-            rendererSelection = 3;
-        }
-        rendererSpinner.setSelection(rendererSelection);
+        rendererSpinner.setSelection(currentRenderer == RENDERER_SOFTWARE ? 1 : 0);
         root.addView(rendererSpinner);
 
         TextView aspectLabel = new TextView(this);
@@ -450,16 +541,7 @@ public class EmulatorActivity extends AppCompatActivity {
         rendererSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                int selectedRenderer;
-                if (position == 1) {
-                    selectedRenderer = RENDERER_OPENGL_ES;
-                } else if (position == 2) {
-                    selectedRenderer = RENDERER_VULKAN;
-                } else if (position == 3) {
-                    selectedRenderer = RENDERER_SOFTWARE;
-                } else {
-                    selectedRenderer = RENDERER_AUTO;
-                }
+                int selectedRenderer = position == 1 ? RENDERER_SOFTWARE : RENDERER_VULKAN;
                 if (!ready[0] || currentRenderer == selectedRenderer) return;
                 currentRenderer = selectedRenderer;
                 if (!isHardwareRendererSelected()) {
@@ -614,13 +696,14 @@ public class EmulatorActivity extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
         debugModeEnabled = prefs.getBoolean(SettingsActivity.KEY_DEBUG_OVERLAY_ENABLED, false);
         aspectRatio16by9 = prefs.getBoolean("aspect_ratio_16by9", false);
-        currentRenderer = normalizeRendererType(prefs.getInt(SettingsActivity.KEY_RENDERER_TYPE, RENDERER_AUTO));
+        currentRenderer = normalizeRendererType(prefs.getInt(SettingsActivity.KEY_RENDERER_TYPE, RENDERER_VULKAN));
         nearestFiltering = prefs.getBoolean("nearest_filtering", false);
         antiAliasingMode = prefs.getInt("anti_aliasing_mode", 0);
         if (antiAliasingMode < 0 || antiAliasingMode > 2) {
             antiAliasingMode = 0;
         }
         crtShaderEnabled = prefs.getBoolean("crt_shader_enabled", false);
+        bezelEnabled = prefs.getBoolean(SettingsActivity.KEY_BEZEL_ENABLED, true);
         resolutionScale = prefs.getInt("resolution_scale", 0);
         if (resolutionScale < 0 || resolutionScale > MAX_RESOLUTION_SCALE) {
             resolutionScale = 0;
@@ -654,33 +737,30 @@ public class EmulatorActivity extends AppCompatActivity {
             .apply();
     }
 
+    private void applyBezelVisibility() {
+        if (emulatorBezel != null) {
+            emulatorBezel.setVisibility(bezelEnabled ? View.VISIBLE : View.GONE);
+        }
+    }
+
     private String getRendererShortName(int rendererType) {
         if (rendererType == RENDERER_VULKAN) {
             return "Vulkan";
         }
-        if (rendererType == RENDERER_OPENGL_ES) {
-            return "OpenGL";
-        }
         if (rendererType == RENDERER_SOFTWARE) {
             return "Soft";
         }
-        return "Auto";
+        return "Vulkan";
     }
 
     private int normalizeRendererType(int rendererType) {
-        if (rendererType == RENDERER_AUTO) {
-            return RENDERER_AUTO;
-        }
-        if (rendererType == RENDERER_OPENGL_ES) {
-            return RENDERER_OPENGL_ES;
-        }
         if (rendererType == RENDERER_VULKAN) {
             return RENDERER_VULKAN;
         }
         if (rendererType == RENDERER_SOFTWARE) {
             return RENDERER_SOFTWARE;
         }
-        return RENDERER_AUTO;
+        return RENDERER_VULKAN;
     }
     
     private void updateStatusIndicator() {
@@ -1142,6 +1222,11 @@ public class EmulatorActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        debugModeEnabled = prefs.getBoolean(SettingsActivity.KEY_DEBUG_OVERLAY_ENABLED, false);
+        bezelEnabled = prefs.getBoolean(SettingsActivity.KEY_BEZEL_ENABLED, true);
+        applyDebugModeUi();
+        applyBezelVisibility();
         if (emulatorStarted && !emulatorInitializing && !manuallyPaused) {
             resumeEmulator();
         }
@@ -1163,7 +1248,13 @@ public class EmulatorActivity extends AppCompatActivity {
         super.onConfigurationChanged(newConfig);
         // Handle orientation changes for emulator
         DeviceOrientationManager.handleEmulatorOrientationChange(this);
-        
+
+        // Push the current screen rotation to the native renderer so the
+        // Vulkan renderer (in particular) can orient its output correctly.
+        // Respects the user-selected "Display Rotation" in Settings; falls
+        // back to the device's current orientation when set to Auto.
+        setRotation(getEffectiveRotation());
+
         // If we're in landscape and have a surface, reinitialize renderer
         if (DeviceOrientationManager.isLandscape(this) && emulatorSurfaceView != null) {
             SurfaceHolder holder = emulatorSurfaceView.getHolder();
@@ -1218,11 +1309,22 @@ public class EmulatorActivity extends AppCompatActivity {
     private native void setFlipVertical(boolean flip);
     private native void setFlipX(boolean flip);
     private native void setFlipY(boolean flip);
+    private native void setRotation(int degrees);
     private native int consumeRenderedFrames();
+
+    /**
+     * Always 0 — the user-facing rotate control was removed. Orientation is
+     * handled correctly by the Vulkan IDENTITY pre-transform (compositor rotates
+     * the landscape image to the display, like GLES) plus the no-flip fix, so no
+     * shader rotation is ever needed. Applying any here would re-introduce the
+     * old "sideways / mirrored" bug.
+     */
+    private int getEffectiveRotation() {
+        return 0;
+    }
     
     // Renderer type constants
     public static final int RENDERER_AUTO = 0;
-    public static final int RENDERER_OPENGL_ES = 1;
     public static final int RENDERER_VULKAN = 2;
     public static final int RENDERER_SOFTWARE = 3;
 

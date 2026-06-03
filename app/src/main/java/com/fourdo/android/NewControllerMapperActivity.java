@@ -167,7 +167,7 @@ public class NewControllerMapperActivity extends Activity {
             if (waitingForButton >= 0) {
                 mapperStatusText.setText("Press a controller button for " + ControllerMappingManager.buttonName(waitingForButton));
             } else {
-                mapperStatusText.setText("Tap a control on the 3DO pad image to remap it.");
+                mapperStatusText.setText("Tap a button below, then press a controller button to map it.");
             }
         }
 

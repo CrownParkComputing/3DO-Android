@@ -44,7 +44,10 @@ final class SafFileImporter {
     static Intent createOpenDocumentTreeIntent() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+        intent.putExtra("android.content.extra.SHOW_ADVANCED", true);
         return intent;
     }
 
@@ -216,6 +219,11 @@ final class SafFileImporter {
             context.getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
         } catch (SecurityException ignored) {
         }
+        try {
+            context.getContentResolver().takePersistableUriPermission(uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        } catch (SecurityException ignored) {
+        }
     }
 
     private static boolean isBiosFileName(String name) {
@@ -234,6 +242,8 @@ final class SafFileImporter {
                 || lower.endsWith(".ccd")
                 || lower.endsWith(".mdf")
                 || lower.endsWith(".mds")
+                || lower.endsWith(".wav")
+                || lower.endsWith(".wv")
                 || lower.endsWith(".zip")
                 || lower.endsWith(".7z")
                 || lower.endsWith(".rar");

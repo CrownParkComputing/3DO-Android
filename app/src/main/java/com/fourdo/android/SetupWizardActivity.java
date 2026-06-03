@@ -182,6 +182,7 @@ public class SetupWizardActivity extends AppCompatActivity {
                         }
                         break;
                     case REQUEST_GAME:
+                        Toast.makeText(this, "Importing library...", Toast.LENGTH_SHORT).show();
                         new Thread(() -> {
                             try {
                                 SafFileImporter.ImportResult result = SafFileImporter.importLibraryTree(this, uri);

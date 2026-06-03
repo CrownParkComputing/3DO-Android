@@ -24,6 +24,8 @@ public:
     void setOutputResolutionPreset(int targetHeight) override;
     void setFlipVertical(bool enabled) override;
     void setFlip(bool flipX, bool flipY) override;
+    // Software path is already correctly oriented; setRotation is a no-op.
+    void setRotation(int degrees) override;
     const char* getName() const override { return "Software (CPU)"; }
     bool isInitialized() const override { return m_initialized; }
     int getWindowWidth() const override { return m_windowWidth; }

@@ -71,6 +71,20 @@
         android:src="@android:drawable/ic_menu_manage"
         app:tint="#FFFFFF" />
 
+    <ImageButton
+        android:id="@+id/screenshot_button"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="80dp"
+        android:background="#66000000"
+        android:contentDescription="Save Screenshot"
+        android:elevation="4dp"
+        android:padding="12dp"
+        android:src="@android:drawable/ic_menu_camera"
+        app:tint="#FFFFFF" />
+
     <!-- Status indicator for current settings -->
     <TextView
         android:id="@+id/status_indicator"
@@ -79,7 +93,7 @@
         android:layout_gravity="bottom|end"
         android:layout_marginBottom="20dp"
         android:layout_marginEnd="16dp"
-        android:text="4:3 | OpenGL | Linear"
+        android:text="4:3 | Vulkan | Linear"
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:background="#66000000"

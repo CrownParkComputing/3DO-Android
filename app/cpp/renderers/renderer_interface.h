@@ -73,7 +73,15 @@ public:
      * Set vertical flip for rendering output (useful for device-specific surface orientation fixes).
      */
     virtual void setFlipVertical(bool enabled) = 0;
-    
+
+    /**
+     * Set the device rotation in degrees (0, 90, 180, 270). The renderer is
+     * expected to apply this to its output (e.g. by rotating the rendered quad
+     * in the vertex shader). Safe to call before initialization. Unknown
+     * values are clamped to 0.
+     */
+    virtual void setRotation(int degrees) = 0;
+
     /**
      * Get the renderer name for display/debugging.
      * @return Human-readable renderer name

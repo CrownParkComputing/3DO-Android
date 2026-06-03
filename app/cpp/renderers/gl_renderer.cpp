@@ -950,3 +950,9 @@ void GLRenderer::updateViewport() {
          viewportX, viewportY, viewportWidth, viewportHeight,
             renderWidth, renderHeight, m_frameWidth, m_frameHeight, frameAspect);
 }
+
+void GLRenderer::setRotation(int /*degrees*/) {
+    // The GL renderer is already correctly oriented via Android's EGL
+    // surface handling. We deliberately do not regress it. The interface
+    // method exists for parity with VulkanRenderer.
+}

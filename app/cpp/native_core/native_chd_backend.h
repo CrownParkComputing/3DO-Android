@@ -56,6 +56,11 @@ class LibChdBackend {
 
     chd_file* m_chd{nullptr};
     std::string m_path;
+    struct MemoryFile {
+        std::vector<u8> data;
+        size_t position{0};
+    };
+    MemoryFile m_memory_file;
     std::unique_ptr<u8[]> m_hunk_buffer;
     u32 m_hunk_bytes{0};
     u32 m_frame_bytes{0};
@@ -127,12 +132,61 @@ public:
         return true;
     }
 
+    bool open_memory(const std::string& path, std::vector<u8>&& data) {
+        close();
+        m_path = path;
+        m_memory_file.data = std::move(data);
+        m_memory_file.position = 0;
+
+        chd_error err = chd_open_core_file_callbacks(&memory_callbacks(), &m_memory_file, CHD_OPEN_READ, nullptr, &m_chd);
+        if (err != CHDERR_NONE) {
+            LOGE("libchdr failed to open memory CHD '%s': %s", path.c_str(), chd_error_string(err));
+            m_chd = nullptr;
+            m_memory_file.data.clear();
+            return false;
+        }
+
+        const chd_header* header = chd_get_header(m_chd);
+        if (!header) {
+            LOGE("libchdr returned no CHD header for memory image: %s", path.c_str());
+            close();
+            return false;
+        }
+
+        if (header->hunkbytes == 0 || header->unitbytes == 0 || header->hunkbytes % header->unitbytes != 0
+                || header->unitbytes < CD_MAX_SECTOR_DATA) {
+            LOGE("Invalid CHD geometry for memory image '%s': hunkbytes=%u unitbytes=%u",
+                path.c_str(), header->hunkbytes, header->unitbytes);
+            close();
+            return false;
+        }
+
+        m_hunk_bytes = header->hunkbytes;
+        m_frame_bytes = header->unitbytes;
+        m_frames_per_hunk = m_hunk_bytes / m_frame_bytes;
+        m_hunk_buffer = std::make_unique<u8[]>(m_hunk_bytes);
+        m_cached_hunk = UINT32_MAX;
+
+        load_tracks(*header);
+        if (m_total_sectors == 0) {
+            LOGE("No readable data tracks found in memory CHD: %s", path.c_str());
+            close();
+            return false;
+        }
+
+        LOGI("CHD opened from RAM via libchdr: %s (%zu bytes, sectors=%u, tracks=%zu)",
+            path.c_str(), m_memory_file.data.size(), m_total_sectors, m_tracks.size());
+        return true;
+    }
+
     void close() {
         if (m_chd) {
             chd_close(m_chd);
             m_chd = nullptr;
         }
         m_path.clear();
+        m_memory_file.data.clear();
+        m_memory_file.position = 0;
         m_hunk_buffer.reset();
         m_hunk_bytes = 0;
         m_frame_bytes = 0;
@@ -223,6 +277,67 @@ private:
         for (size_t index = 0; index + 1 < length; index += 2) {
             std::swap(data[index], data[index + 1]);
         }
+    }
+
+    static uint64_t memory_fsize(void* user) {
+        const MemoryFile* file = static_cast<const MemoryFile*>(user);
+        return file ? static_cast<uint64_t>(file->data.size()) : static_cast<uint64_t>(-1);
+    }
+
+    static size_t memory_fread(void* ptr, size_t size, size_t count, void* user) {
+        MemoryFile* file = static_cast<MemoryFile*>(user);
+        if (!file || !ptr || size == 0 || count == 0) {
+            return 0;
+        }
+
+        const size_t requested = size * count;
+        const size_t available = file->position < file->data.size() ? file->data.size() - file->position : 0;
+        const size_t bytes_to_read = std::min(requested, available);
+        if (bytes_to_read > 0) {
+            std::memcpy(ptr, file->data.data() + file->position, bytes_to_read);
+            file->position += bytes_to_read;
+        }
+        return bytes_to_read / size;
+    }
+
+    static int memory_fclose(void*) {
+        return 0;
+    }
+
+    static int memory_fseek(void* user, int64_t offset, int origin) {
+        MemoryFile* file = static_cast<MemoryFile*>(user);
+        if (!file) {
+            return -1;
+        }
+
+        int64_t base = 0;
+        if (origin == SEEK_SET) {
+            base = 0;
+        } else if (origin == SEEK_CUR) {
+            base = static_cast<int64_t>(file->position);
+        } else if (origin == SEEK_END) {
+            base = static_cast<int64_t>(file->data.size());
+        } else {
+            return -1;
+        }
+
+        const int64_t next = base + offset;
+        if (next < 0 || static_cast<uint64_t>(next) > file->data.size()) {
+            return -1;
+        }
+
+        file->position = static_cast<size_t>(next);
+        return 0;
+    }
+
+    static const core_file_callbacks& memory_callbacks() {
+        static const core_file_callbacks callbacks = {
+            memory_fsize,
+            memory_fread,
+            memory_fclose,
+            memory_fseek
+        };
+        return callbacks;
     }
 
     static bool parse_disc_label_at_offset(const u8* sector, size_t offset, DiscLabelProbe& probe) {

@@ -52,6 +52,12 @@ static uint32_t s_read_data_count  = 0;
 opera_cdrom_get_size_cb_t    CDROM_GET_SIZE;
 opera_cdrom_set_sector_cb_t  CDROM_SET_SECTOR;
 opera_cdrom_read_sector_cb_t CDROM_READ_SECTOR;
+opera_cdrom_get_track_count_cb_t CDROM_GET_TRACK_COUNT;
+opera_cdrom_get_track_info_cb_t  CDROM_GET_TRACK_INFO;
+opera_cdrom_play_audio_range_cb_t CDROM_PLAY_AUDIO_RANGE;
+opera_cdrom_play_audio_track_cb_t CDROM_PLAY_AUDIO_TRACK;
+opera_cdrom_pause_audio_cb_t      CDROM_PAUSE_AUDIO;
+opera_cdrom_stop_audio_cb_t       CDROM_STOP_AUDIO;
 
 static
 INLINE
@@ -95,9 +101,37 @@ opera_cdrom_set_callbacks(opera_cdrom_get_size_cb_t    get_size_,
 }
 
 void
+opera_cdrom_set_track_callbacks(opera_cdrom_get_track_count_cb_t get_track_count_,
+                                opera_cdrom_get_track_info_cb_t  get_track_info_)
+{
+  CDROM_GET_TRACK_COUNT = get_track_count_;
+  CDROM_GET_TRACK_INFO  = get_track_info_;
+}
+
+void
+opera_cdrom_set_audio_callbacks(opera_cdrom_play_audio_range_cb_t play_audio_range_,
+                                opera_cdrom_play_audio_track_cb_t play_audio_track_,
+                                opera_cdrom_pause_audio_cb_t      pause_audio_,
+                                opera_cdrom_stop_audio_cb_t       stop_audio_)
+{
+  CDROM_PLAY_AUDIO_RANGE = play_audio_range_;
+  CDROM_PLAY_AUDIO_TRACK = play_audio_track_;
+  CDROM_PAUSE_AUDIO      = pause_audio_;
+  CDROM_STOP_AUDIO       = stop_audio_;
+}
+
+static uint8_t
+cdrom_bcd_to_int(uint8_t value_)
+{
+  return (uint8_t)(((value_ >> 4) * 10) + (value_ & 0x0F));
+}
+
+void
 opera_cdrom_init(cdrom_device_t *cd_)
 {
   uint32_t file_size_in_blocks;
+  uint32_t track_count;
+  uint32_t track_index;
 
   cd_->current_sector = 0;
   CDROM_SET_SECTOR(cd_->current_sector);
@@ -131,6 +165,35 @@ opera_cdrom_init(cdrom_device_t *cd_)
   cd_->disc.disc_toc[1].minutes      = 0;
   cd_->disc.disc_toc[1].seconds      = MSF_BIAS_IN_SECONDS;
   cd_->disc.disc_toc[1].frames       = 0;
+
+  track_count = (CDROM_GET_TRACK_COUNT != NULL) ? CDROM_GET_TRACK_COUNT() : 0;
+  if(track_count > 0)
+    {
+      cd_->disc.track_first = 1;
+      cd_->disc.track_last  = (track_count > 99) ? 99 : (uint8_t)track_count;
+      memset(cd_->disc.disc_toc,0,sizeof(cd_->disc.disc_toc));
+
+      for(track_index = 0; track_index < track_count && track_index < 99; track_index++)
+        {
+          uint8_t track_number = 0;
+          uint8_t is_audio = 0;
+          uint32_t start_sector = 0;
+          uint32_t sector_count = 0;
+          if(CDROM_GET_TRACK_INFO != NULL &&
+             CDROM_GET_TRACK_INFO(track_index,&track_number,&is_audio,&start_sector,&sector_count) &&
+             track_number > 0 &&
+             track_number < 100)
+            {
+              msf_t start_msf;
+              LBA2MSF(start_sector,&start_msf);
+              cd_->disc.disc_toc[track_number].CDCTL        = is_audio ? CD_CTL_Q_NONE : (CD_CTL_DATA_TRACK|CD_CTL_Q_NONE);
+              cd_->disc.disc_toc[track_number].track_number = track_number;
+              cd_->disc.disc_toc[track_number].minutes      = start_msf.minutes;
+              cd_->disc.disc_toc[track_number].seconds      = start_msf.seconds;
+              cd_->disc.disc_toc[track_number].frames       = start_msf.frames;
+            }
+        }
+    }
 
   LBA2MSF(file_size_in_blocks + MSF_BIAS_IN_FRAMES,&cd_->disc.msf_total);
   LBA2MSF(file_size_in_blocks,&cd_->disc.msf_session);
@@ -236,6 +299,8 @@ opera_cdrom_do_cmd(cdrom_device_t *cd_)
         xx xx xx XS  (XS = xbus status)
       */
     case CDROM_CMD_SPIN_DOWN:
+      if(CDROM_STOP_AUDIO != NULL)
+        CDROM_STOP_AUDIO();
       cd_->xbus_status |= CDST_RDY;
       if((cd_->xbus_status & CDST_TRAY) &&
          (cd_->xbus_status & CDST_DISC))
@@ -278,6 +343,8 @@ opera_cdrom_do_cmd(cdrom_device_t *cd_)
         Check Sense, update PollRegister (if medium present)
       */
     case CDROM_CMD_EJECT_DISC:
+      if(CDROM_STOP_AUDIO != NULL)
+        CDROM_STOP_AUDIO();
       /* Return xbus=0x01 (RDY only, no TRAY/DISC/SPIN) so the BIOS
          takes the "disc absent" code path and immediately issues SPIN_UP.
          With disc flags present (0xC1) the BIOS waits for a spontaneous
@@ -315,6 +382,8 @@ opera_cdrom_do_cmd(cdrom_device_t *cd_)
         xx xx xx XS
       */
     case CDROM_CMD_ABORT:
+      if(CDROM_STOP_AUDIO != NULL)
+        CDROM_STOP_AUDIO();
       cd_->status_len = 33;
       cd_->status[0]  = CDROM_CMD_ABORT;
       for(i = 1; i < 32; i++)
@@ -375,6 +444,8 @@ opera_cdrom_do_cmd(cdrom_device_t *cd_)
         1+31+1
       */
     case CDROM_CMD_FLUSH:
+      if(CDROM_STOP_AUDIO != NULL)
+        CDROM_STOP_AUDIO();
       cd_->xbus_status |= CDST_RDY;
       cd_->status_len   = 33;
       cd_->status[0]    = CDROM_CMD_FLUSH;
@@ -384,6 +455,89 @@ opera_cdrom_do_cmd(cdrom_device_t *cd_)
 
       /* cd_->xbus_status |= CDST_RDY; */
       cd_->MEI_status = MEI_CDROM_no_error;
+      break;
+
+    case CDROM_CMD_PAUSE_RESUME:
+      if(CDROM_PAUSE_AUDIO != NULL)
+        CDROM_PAUSE_AUDIO(cd_->cmd[1] == 0x00);
+      cd_->xbus_status |= CDST_RDY;
+      cd_->status_len   = 2;
+      cd_->status[0]    = CDROM_CMD_PAUSE_RESUME;
+      cd_->status[1]    = cd_->xbus_status;
+      cd_->MEI_status   = MEI_CDROM_no_error;
+      cd_->poll        |= POLST;
+      break;
+
+    case CDROM_CMD_PLAY_AUDIO_MSF:
+      if((cd_->xbus_status & CDST_TRAY) &&
+         (cd_->xbus_status & CDST_DISC) &&
+         (cd_->xbus_status & CDST_SPIN))
+        {
+          msf_t start_msf;
+          msf_t end_msf;
+          uint32_t start_sector;
+          uint32_t end_sector;
+          int ok;
+
+          start_msf.minutes = cd_->cmd[1];
+          start_msf.seconds = cd_->cmd[2];
+          start_msf.frames  = cd_->cmd[3];
+          end_msf.minutes   = cd_->cmd[4];
+          end_msf.seconds   = cd_->cmd[5];
+          end_msf.frames    = cd_->cmd[6];
+          start_sector      = MSF2LBA(&start_msf);
+          end_sector        = MSF2LBA(&end_msf);
+          ok = (CDROM_PLAY_AUDIO_RANGE != NULL) ? CDROM_PLAY_AUDIO_RANGE(start_sector,end_sector) : 0;
+
+          cd_->xbus_status |= CDST_RDY;
+          cd_->status_len   = 2;
+          cd_->status[0]    = CDROM_CMD_PLAY_AUDIO_MSF;
+          cd_->status[1]    = cd_->xbus_status;
+          cd_->MEI_status   = ok ? MEI_CDROM_no_error : MEI_CDROM_track_error;
+          if(!ok)
+            cd_->xbus_status |= CDST_ERRO;
+          cd_->poll        |= POLST;
+        }
+      else
+        {
+          cd_->xbus_status |= CDST_ERRO;
+          cd_->xbus_status &= ~CDST_RDY;
+          cd_->status_len   = 2;
+          cd_->status[0]    = CDROM_CMD_PLAY_AUDIO_MSF;
+          cd_->status[1]    = cd_->xbus_status;
+          cd_->MEI_status   = MEI_CDROM_not_ready;
+          cd_->poll        |= POLST;
+        }
+      break;
+
+    case CDROM_CMD_PLAY_AUDIO_TRACK:
+      if((cd_->xbus_status & CDST_TRAY) &&
+         (cd_->xbus_status & CDST_DISC) &&
+         (cd_->xbus_status & CDST_SPIN))
+        {
+          uint32_t start_track = cdrom_bcd_to_int(cd_->cmd[1]);
+          uint32_t end_track   = cdrom_bcd_to_int(cd_->cmd[3]);
+          int ok = (CDROM_PLAY_AUDIO_TRACK != NULL) ? CDROM_PLAY_AUDIO_TRACK(start_track,end_track) : 0;
+
+          cd_->xbus_status |= CDST_RDY;
+          cd_->status_len   = 2;
+          cd_->status[0]    = CDROM_CMD_PLAY_AUDIO_TRACK;
+          cd_->status[1]    = cd_->xbus_status;
+          cd_->MEI_status   = ok ? MEI_CDROM_no_error : MEI_CDROM_track_error;
+          if(!ok)
+            cd_->xbus_status |= CDST_ERRO;
+          cd_->poll        |= POLST;
+        }
+      else
+        {
+          cd_->xbus_status |= CDST_ERRO;
+          cd_->xbus_status &= ~CDST_RDY;
+          cd_->status_len   = 2;
+          cd_->status[0]    = CDROM_CMD_PLAY_AUDIO_TRACK;
+          cd_->status[1]    = cd_->xbus_status;
+          cd_->MEI_status   = MEI_CDROM_not_ready;
+          cd_->poll        |= POLST;
+        }
       break;
 
       /*

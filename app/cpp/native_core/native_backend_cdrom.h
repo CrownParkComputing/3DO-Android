@@ -48,6 +48,9 @@ enum CDROM_Commands
     CDROM_CMD_MODE_SET           = 0x09,
     CDROM_CMD_RESET              = 0x0A,
     CDROM_CMD_FLUSH              = 0x0B,
+    CDROM_CMD_PAUSE_RESUME       = 0x0D,
+    CDROM_CMD_PLAY_AUDIO_MSF     = 0x0E,
+    CDROM_CMD_PLAY_AUDIO_TRACK   = 0x0F,
     CDROM_CMD_READ_DATA          = 0x10,
     CDROM_CMD_DATA_PATH_CHECK    = 0x80,
     CDROM_CMD_GET_LAST_STATUS    = 0x82,
@@ -178,6 +181,16 @@ typedef struct cdrom_device_s cdrom_device_t;
 typedef uint32_t (*opera_cdrom_get_size_cb_t)(void);
 typedef void (*opera_cdrom_set_sector_cb_t)(const uint32_t sector_);
 typedef void (*opera_cdrom_read_sector_cb_t)(void *buf_);
+typedef uint32_t (*opera_cdrom_get_track_count_cb_t)(void);
+typedef int (*opera_cdrom_get_track_info_cb_t)(uint32_t index_,
+                                               uint8_t *track_number_,
+                                               uint8_t *is_audio_,
+                                               uint32_t *start_sector_,
+                                               uint32_t *sector_count_);
+typedef int (*opera_cdrom_play_audio_range_cb_t)(uint32_t start_sector_, uint32_t end_sector_);
+typedef int (*opera_cdrom_play_audio_track_cb_t)(uint32_t start_track_, uint32_t end_track_);
+typedef void (*opera_cdrom_pause_audio_cb_t)(uint8_t paused_);
+typedef void (*opera_cdrom_stop_audio_cb_t)(void);
 
 void    opera_cdrom_init(cdrom_device_t *cd_);
 void    opera_cdrom_send_cmd(cdrom_device_t *cd_, uint8_t val_);
@@ -188,6 +201,12 @@ uint8_t opera_cdrom_fifo_get_data(cdrom_device_t *cd_);
 void    opera_cdrom_set_callbacks(opera_cdrom_get_size_cb_t    get_size_,
                                   opera_cdrom_set_sector_cb_t  set_sector_,
                                   opera_cdrom_read_sector_cb_t read_sector_);
+void    opera_cdrom_set_track_callbacks(opera_cdrom_get_track_count_cb_t get_track_count_,
+                                        opera_cdrom_get_track_info_cb_t  get_track_info_);
+void    opera_cdrom_set_audio_callbacks(opera_cdrom_play_audio_range_cb_t play_audio_range_,
+                                        opera_cdrom_play_audio_track_cb_t play_audio_track_,
+                                        opera_cdrom_pause_audio_cb_t      pause_audio_,
+                                        opera_cdrom_stop_audio_cb_t       stop_audio_);
 
 EXTERN_C_END
 

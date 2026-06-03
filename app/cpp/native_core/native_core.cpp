@@ -38,9 +38,25 @@ extern "C" {
     typedef uint32_t (*opera_cdrom_get_size_cb_t)(void);
     typedef void     (*opera_cdrom_set_sector_cb_t)(uint32_t sector);
     typedef void     (*opera_cdrom_read_sector_cb_t)(void* buf);
+    typedef uint32_t (*opera_cdrom_get_track_count_cb_t)(void);
+    typedef int      (*opera_cdrom_get_track_info_cb_t)(uint32_t index,
+                                                        uint8_t* track_number,
+                                                        uint8_t* is_audio,
+                                                        uint32_t* start_sector,
+                                                        uint32_t* sector_count);
+    typedef int      (*opera_cdrom_play_audio_range_cb_t)(uint32_t start_sector, uint32_t end_sector);
+    typedef int      (*opera_cdrom_play_audio_track_cb_t)(uint32_t start_track, uint32_t end_track);
+    typedef void     (*opera_cdrom_pause_audio_cb_t)(uint8_t paused);
+    typedef void     (*opera_cdrom_stop_audio_cb_t)(void);
     void opera_cdrom_set_callbacks(opera_cdrom_get_size_cb_t get_size,
                                    opera_cdrom_set_sector_cb_t set_sector,
                                    opera_cdrom_read_sector_cb_t read_sector);
+    void opera_cdrom_set_track_callbacks(opera_cdrom_get_track_count_cb_t get_track_count,
+                                         opera_cdrom_get_track_info_cb_t get_track_info);
+    void opera_cdrom_set_audio_callbacks(opera_cdrom_play_audio_range_cb_t play_audio_range,
+                                         opera_cdrom_play_audio_track_cb_t play_audio_track,
+                                         opera_cdrom_pause_audio_cb_t pause_audio,
+                                         opera_cdrom_stop_audio_cb_t stop_audio);
 
     // Video
     int opera_vdlp_set_video_buffer(void* buf);
@@ -586,6 +602,38 @@ static inline int64_t monotonic_us() {
 uint32_t FourdoCore::opera_cdrom_get_size_cb()               { return instance().m_cdrom.get_size(); }
 void     FourdoCore::opera_cdrom_set_sector_cb(uint32_t s)   { instance().m_cdrom.set_sector(s); }
 void     FourdoCore::opera_cdrom_read_sector_cb(void* buf)   { instance().m_cdrom.read_sector(buf); }
+uint32_t FourdoCore::opera_cdrom_get_track_count_cb() {
+    return static_cast<uint32_t>(instance().m_cdrom.tracks().size());
+}
+int FourdoCore::opera_cdrom_get_track_info_cb(uint32_t index,
+                                              uint8_t* track_number,
+                                              uint8_t* is_audio,
+                                              uint32_t* start_sector,
+                                              uint32_t* sector_count) {
+    const auto& tracks = instance().m_cdrom.tracks();
+    if (index >= tracks.size() || !track_number || !is_audio || !start_sector || !sector_count) {
+        return 0;
+    }
+
+    const auto& track = tracks[index];
+    *track_number = track.track_number;
+    *is_audio = track.audio ? 1 : 0;
+    *start_sector = track.start_sector;
+    *sector_count = track.sector_count;
+    return 1;
+}
+int FourdoCore::opera_cdrom_play_audio_range_cb(uint32_t start_sector, uint32_t end_sector) {
+    return instance().m_cdrom.play_audio_range(start_sector, end_sector) ? 1 : 0;
+}
+int FourdoCore::opera_cdrom_play_audio_track_cb(uint32_t start_track, uint32_t end_track) {
+    return instance().m_cdrom.play_audio_tracks(start_track, end_track) ? 1 : 0;
+}
+void FourdoCore::opera_cdrom_pause_audio_cb(uint8_t paused) {
+    instance().m_cdrom.pause_audio(paused != 0);
+}
+void FourdoCore::opera_cdrom_stop_audio_cb() {
+    instance().m_cdrom.stop_audio();
+}
 void     FourdoCore::opera_push_audio(uint32_t packed)       { instance().push_audio_sample(packed); }
 
 // libopera callback
@@ -785,16 +833,26 @@ int FourdoCore::drain_audio(u32* out_buffer, int max_frames) {
     u32 wp = m_audio_write_pos.load(std::memory_order_acquire);
 
     u32 avail = wp - rp;
-    if (avail == 0) return 0;
-
     int count = (avail < static_cast<u32>(max_frames))
                 ? static_cast<int>(avail) : max_frames;
     for (int i = 0; i < count; ++i) {
         out_buffer[i] = m_audio_ring[(rp + i) & AUDIO_RING_MASK];
     }
-    std::atomic_thread_fence(std::memory_order_acquire);
-    m_audio_read_pos.store(rp + count, std::memory_order_release);
-    return count;
+
+    int frames_to_output = count;
+    if (frames_to_output == 0 && m_cdrom.is_audio_playing()) {
+        frames_to_output = max_frames;
+    }
+    for (int i = count; i < frames_to_output; ++i) {
+        out_buffer[i] = 0;
+    }
+
+    int cdda_frames = m_cdrom.mix_audio(out_buffer, frames_to_output);
+    if (count > 0) {
+        std::atomic_thread_fence(std::memory_order_acquire);
+        m_audio_read_pos.store(rp + count, std::memory_order_release);
+    }
+    return (frames_to_output > cdda_frames) ? frames_to_output : cdda_frames;
 }
 
 // -----------------------------------------------------------------------
@@ -962,6 +1020,12 @@ void FourdoCore::emulator_loop() {
     opera_cdrom_set_callbacks(opera_cdrom_get_size_cb,
                               opera_cdrom_set_sector_cb,
                               opera_cdrom_read_sector_cb);
+    opera_cdrom_set_track_callbacks(opera_cdrom_get_track_count_cb,
+                                    opera_cdrom_get_track_info_cb);
+    opera_cdrom_set_audio_callbacks(opera_cdrom_play_audio_range_cb,
+                                    opera_cdrom_play_audio_track_cb,
+                                    opera_cdrom_pause_audio_cb,
+                                    opera_cdrom_stop_audio_cb);
 
     // Initialise memory if needed
     if (opera_mem_cfg() == DRAM_VRAM_UNSET_CFG) {

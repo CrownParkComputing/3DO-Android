@@ -174,3 +174,8 @@ void SoftwareRenderer::setFlip(bool flipX, bool flipY) {
     m_flipX = flipX;
     m_flipY = flipY;
 }
+
+void SoftwareRenderer::setRotation(int /*degrees*/) {
+    // Software path is already correctly oriented via the ANativeWindow
+    // surface handling. Kept as a no-op override for IRenderer parity.
+}

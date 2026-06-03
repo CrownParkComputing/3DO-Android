@@ -1,7 +1,7 @@
 /**
  * 4DO Unified Renderer
  *
- * OpenGL ES 3.0 rendering bridge for the 3DO emulator.
+ * Vulkan rendering bridge for the 3DO emulator.
  *
  * Provides:
  *   - render_frame()  – called from the emulator thread each frame
@@ -22,7 +22,6 @@
 #include <string>
 
 #include "renderers/renderer_interface.h"
-#include "renderers/gl_renderer.h"
 #include "renderers/software_renderer.h"
 #include "renderers/vulkan_renderer.h"
 
@@ -39,7 +38,7 @@ static IRenderer*      g_renderer        = nullptr;
 static ANativeWindow*  g_native_window   = nullptr;
 static int             g_window_width    = 0;
 static int             g_window_height   = 0;
-static RendererType    g_renderer_type   = RendererType::AUTO;
+static RendererType    g_renderer_type   = RendererType::VULKAN;
 static bool            g_nearest         = false;
 static bool            g_aspect_wide     = false; // false = 4:3, true = 16:9
 static bool            g_crt_enabled     = false;
@@ -51,6 +50,7 @@ static bool            g_flip_x = false;
 // Historically the renderer expected the texture origin to be top-left;
 // keep vertical flip enabled by default to preserve existing output orientation.
 static bool            g_flip_y = true;
+static int             g_rotation       = 0; // 0, 90, 180, or 270
 static std::atomic<uint32_t> g_rendered_frames{0};
 
 static std::string format_render_target_info() {
@@ -111,10 +111,9 @@ static IRenderer* create_renderer(RendererType type) {
     switch (type) {
         case RendererType::VULKAN:
             return new VulkanRenderer();
-        case RendererType::OPENGL_ES:
         case RendererType::AUTO:
         default:
-            return new GLRenderer();
+            return new VulkanRenderer();
         case RendererType::SOFTWARE:
             return new SoftwareRenderer();
     }
@@ -132,25 +131,21 @@ static void reinit_renderer() {
         g_renderer = nullptr;
     }
 
-    std::array<RendererType, 3> candidates = {RendererType::AUTO, RendererType::OPENGL_ES, RendererType::SOFTWARE};
+    std::array<RendererType, 2> candidates = {RendererType::VULKAN, RendererType::SOFTWARE};
     size_t candidateCount = 0;
     switch (g_renderer_type) {
         case RendererType::VULKAN:
-            candidates = {RendererType::VULKAN, RendererType::OPENGL_ES, RendererType::SOFTWARE};
-            candidateCount = 3;
-            break;
-        case RendererType::OPENGL_ES:
-            candidates = {RendererType::OPENGL_ES, RendererType::SOFTWARE, RendererType::SOFTWARE};
+            candidates = {RendererType::VULKAN, RendererType::SOFTWARE};
             candidateCount = 2;
             break;
         case RendererType::SOFTWARE:
-            candidates = {RendererType::SOFTWARE, RendererType::SOFTWARE, RendererType::SOFTWARE};
+            candidates = {RendererType::SOFTWARE, RendererType::SOFTWARE};
             candidateCount = 1;
             break;
         case RendererType::AUTO:
         default:
-            candidates = {RendererType::VULKAN, RendererType::OPENGL_ES, RendererType::SOFTWARE};
-            candidateCount = 3;
+            candidates = {RendererType::VULKAN, RendererType::SOFTWARE};
+            candidateCount = 2;
             break;
     }
 
@@ -167,6 +162,7 @@ static void reinit_renderer() {
         candidate->setAntiAliasingMode(g_aa_mode);
         candidate->setOutputResolutionPreset(g_output_preset_height);
         candidate->setFlip(g_flip_x, g_flip_y);
+        candidate->setRotation(g_rotation);
 
         if (candidate->initialize(g_native_window, g_window_width, g_window_height)) {
             g_renderer = candidate;
@@ -456,6 +452,24 @@ Java_com_fourdo_android_EmulatorActivity_setFlipY(JNIEnv* /*env*/, jobject /*thi
     g_flip_y = (flip == JNI_TRUE);
     if (g_renderer) {
         g_renderer->setFlip(g_flip_x, g_flip_y);
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_fourdo_android_EmulatorActivity_setRotation(JNIEnv* /*env*/, jobject /*thiz*/, jint degrees) {
+    int clamped = 0;
+    switch (degrees) {
+        case 0:   clamped = 0;   break;
+        case 90:  clamped = 90;  break;
+        case 180: clamped = 180; break;
+        case 270: clamped = 270; break;
+        default:  clamped = 0;   break;
+    }
+    LOGD("setRotation: %d", clamped);
+    std::lock_guard<std::mutex> lock(g_render_mutex);
+    g_rotation = clamped;
+    if (g_renderer) {
+        g_renderer->setRotation(clamped);
     }
 }
 

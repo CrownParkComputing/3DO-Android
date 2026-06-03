@@ -16,15 +16,10 @@ find_library(
     android
 )
 
-# Find EGL and OpenGL ES libraries
+# Find Vulkan library
 find_library(
-    egl-lib
-    EGL
-)
-
-find_library(
-    gles-lib
-    GLESv3
+    vulkan-lib
+    vulkan
 )
 
 # Find zlib for CHD support
@@ -100,6 +95,73 @@ target_link_libraries(
 
 set_target_properties(chdr PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+add_library(
+    wavpack
+    STATIC
+    cpp/third_party/wavpack/src/common_utils.c
+    cpp/third_party/wavpack/src/decorr_utils.c
+    cpp/third_party/wavpack/src/entropy_utils.c
+    cpp/third_party/wavpack/src/extra1.c
+    cpp/third_party/wavpack/src/extra2.c
+    cpp/third_party/wavpack/src/open_utils.c
+    cpp/third_party/wavpack/src/open_filename.c
+    cpp/third_party/wavpack/src/open_legacy.c
+    cpp/third_party/wavpack/src/open_raw.c
+    cpp/third_party/wavpack/src/pack.c
+    cpp/third_party/wavpack/src/pack_dns.c
+    cpp/third_party/wavpack/src/pack_floats.c
+    cpp/third_party/wavpack/src/pack_utils.c
+    cpp/third_party/wavpack/src/read_words.c
+    cpp/third_party/wavpack/src/tags.c
+    cpp/third_party/wavpack/src/tag_utils.c
+    cpp/third_party/wavpack/src/unpack.c
+    cpp/third_party/wavpack/src/unpack_floats.c
+    cpp/third_party/wavpack/src/unpack_seek.c
+    cpp/third_party/wavpack/src/unpack_utils.c
+    cpp/third_party/wavpack/src/write_words.c
+)
+
+target_include_directories(wavpack PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/third_party/wavpack/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/third_party/wavpack/src
+)
+
+set_target_properties(wavpack PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# ---- SPIR-V shaders for the Vulkan renderer ----
+# Sourced from app/cpp/renderers/shaders/*.vert / *.frag, compiled by
+# glslangValidator, and embedded as a uint32_t array by spv_to_cpp.py.
+# The committed vulkan_shaders.gen.cpp is used as a fallback so CI builds
+# without glslangValidator still work.
+find_package(Python3 COMPONENTS Interpreter)
+find_program(GLSLANG_VALIDATOR glslangValidator)
+set(VK_SHADERS_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/renderers/shaders)
+set(VK_SHADERS_OUTDIR ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+set(VK_VERT_SPV       ${VK_SHADERS_OUTDIR}/vulkan.vert.spv)
+set(VK_FRAG_SPV       ${VK_SHADERS_OUTDIR}/vulkan.frag.spv)
+set(VK_SHADERS_GEN    ${VK_SHADERS_DIR}/vulkan_shaders.gen.cpp)
+
+if(GLSLANG_VALIDATOR)
+  file(MAKE_DIRECTORY ${VK_SHADERS_OUTDIR})
+  add_custom_command(
+    OUTPUT  ${VK_VERT_SPV} ${VK_FRAG_SPV}
+    COMMAND ${GLSLANG_VALIDATOR} -V -S vert ${VK_SHADERS_DIR}/vulkan.vert -o ${VK_VERT_SPV}
+    COMMAND ${GLSLANG_VALIDATOR} -V -S frag ${VK_SHADERS_DIR}/vulkan.frag -o ${VK_FRAG_SPV}
+    DEPENDS ${VK_SHADERS_DIR}/vulkan.vert ${VK_SHADERS_DIR}/vulkan.frag
+    COMMENT "Building Vulkan SPIR-V shaders with glslangValidator"
+    VERBATIM)
+  add_custom_command(
+    OUTPUT  ${VK_SHADERS_DIR}/vulkan_shaders.gen.cpp
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${VK_SHADERS_DIR}
+    COMMAND ${Python3_EXECUTABLE} ${VK_SHADERS_DIR}/spv_to_cpp.py
+            ${VK_VERT_SPV} vert_spv
+            ${VK_FRAG_SPV} frag_spv
+            > ${VK_SHADERS_DIR}/vulkan_shaders.gen.cpp
+    DEPENDS ${VK_VERT_SPV} ${VK_FRAG_SPV} ${VK_SHADERS_DIR}/spv_to_cpp.py
+    COMMENT "Regenerating vulkan_shaders.gen.cpp"
+    VERBATIM)
+endif()
+
 # Add all source files
 add_library(
     native-lib
@@ -107,12 +169,11 @@ add_library(
     cpp/jni_bridge.cpp
     cpp/input_handler.cpp
     cpp/unified_renderer.cpp
-    
-    # GPU renderer files
-    cpp/renderers/renderer_factory.cpp
-    cpp/renderers/gl_renderer.cpp
+
+    # Renderer files
     cpp/renderers/software_renderer.cpp
     cpp/renderers/vulkan_renderer.cpp
+    cpp/renderers/shaders/vulkan_shaders.gen.cpp
 
     # Native hardware-emulation backend (ported from legacy opera modules)
     # (individual files will be removed as native C++ replacements are completed)
@@ -165,10 +226,25 @@ target_link_libraries(
     native-lib
     ${log-lib}
     ${android-lib}
-    ${egl-lib}
-    ${gles-lib}
+    ${vulkan-lib}
     chdr
+    wavpack
     ${zlib-lib}
 )
 
 target_link_options(native-lib PRIVATE "-Wl,-z,max-page-size=16384")
+
+# ---- Performance: always optimize the software 3DO core ----
+# The Opera core is a pure software emulator (ARM60 interpreter + MADAM CEL
+# rasterizer + DSP). At -O0 (the Android "Debug" default) it runs several times
+# too slow and games stutter. Force aggressive optimization on the emulator and
+# its codec helper libraries in EVERY build type. These compile options are
+# appended after the build-type flags, so the trailing -O3 overrides the
+# Debug -O0 (last -O wins for Clang). The app/Java layer stays fully debuggable.
+set(CORE_OPT_FLAGS -O3 -fno-math-errno -funroll-loops)
+target_compile_options(native-lib PRIVATE ${CORE_OPT_FLAGS})
+target_compile_definitions(native-lib PRIVATE NDEBUG)
+target_compile_options(chdr      PRIVATE ${CORE_OPT_FLAGS})
+target_compile_options(chdr-lzma PRIVATE ${CORE_OPT_FLAGS})
+target_compile_options(chdr-zstd PRIVATE ${CORE_OPT_FLAGS})
+target_compile_options(wavpack   PRIVATE ${CORE_OPT_FLAGS})
