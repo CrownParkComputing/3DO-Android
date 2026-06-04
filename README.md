@@ -1,25 +1,25 @@
 # 4DO Android
 
-[![Release](https://img.shields.io/github/v/release/CrownParkComputing/4DO-Android?label=Version)](https://github.com/CrownParkComputing/4DO-Android/releases/latest)
+[![Get it on Google Play](https://img.shields.io/badge/Google_Play-Download-414141?logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=com.fourdo.android)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Android](https://img.shields.io/badge/Platform-Android%207.0%2B-green)](https://www.android.com)
 
+<img src="docs/screenshots/icon.png" align="right" width="96" alt="4DO Android icon" />
+
 Android port of 4DO with a Java UI and native emulator/rendering code — a free, open-source emulator for 3DO software with broad Android compatibility across phones, tablets, foldables, and handheld devices.
 
-## Downloads
+## Download
 
-### Latest Release
-**[Get it on Google Play](https://play.google.com/store/apps/details?id=com.fourdo.android)**
-
-or
-
-**[Download 4DO-Emulator-release.aab](https://github.com/CrownParkComputing/4DO-Android/releases/latest/download/4DO-Emulator-release.aab)**
-
-Requires Android 7.0 (API 24) or later.
-
-For previous releases, visit the [Releases page](https://github.com/CrownParkComputing/4DO-Android/releases).
+**[Get it on Google Play](https://play.google.com/store/apps/details?id=com.fourdo.android)** — requires Android 7.0 (API 24) or later.
 
 For documentation and more information, visit the **[4DO Android Documentation site](https://crownparkcomputing.github.io/4DO-Android/)**.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Title screen](docs/screenshots/title.png) | ![Game library](docs/screenshots/library.png) |
+| ![Game details](docs/screenshots/game-detail.png) | ![In-game (correct orientation)](docs/screenshots/gameplay.png) |
 
 ## Requirements
 

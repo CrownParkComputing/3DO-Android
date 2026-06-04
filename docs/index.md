@@ -3,25 +3,26 @@ title: 4DO Emulator for Android
 layout: default
 ---
 
+<p align="center">
+  <img src="screenshots/icon.png" width="120" alt="4DO Android icon" />
+</p>
+
 # 4DO Emulator for Android
 
 A free, open-source Android emulator for 3DO software built from the 4DO lineage, designed for broad compatibility across modern Android phones, tablets, foldables, and handheld devices.
 
-## Downloads
+## Download
 
-### Latest Release
 [![Get it on Google Play](https://img.shields.io/badge/Get_it_on-Google_Play-414141?logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=com.fourdo.android)
-[![Release](https://img.shields.io/github/v/release/CrownParkComputing/4DO-Android?label=Version)](https://github.com/CrownParkComputing/4DO-Android/releases/latest)
 
-| Platform | File | Architecture |
-|----------|------|--------------|
-| Android | [`4DO-Emulator-release.aab`](https://github.com/CrownParkComputing/4DO-Android/releases/latest/download/4DO-Emulator-release.aab) | ARM64-v8a |
+Install from **[Google Play](https://play.google.com/store/apps/details?id=com.fourdo.android)**. Android 7.0 (API 24) or later is required.
 
-> **Note:** Available on Google Play and as a downloadable AAB. Android 7.0 (API 24) or later is required.
+## Screenshots
 
-### Release History
-
-Previous releases are available on the [Releases page](https://github.com/CrownParkComputing/4DO-Android/releases).
+| | |
+|---|---|
+| ![Title screen](screenshots/title.png) | ![Game library](screenshots/library.png) |
+| ![Game details](screenshots/game-detail.png) | ![In-game, correct orientation](screenshots/gameplay.png) |
 
 ## Features
 
@@ -34,11 +35,9 @@ Previous releases are available on the [Releases page](https://github.com/CrownP
 
 ## Installation
 
-1. Install from [Google Play](https://play.google.com/store/apps/details?id=com.fourdo.android), or download the latest `4DO-Emulator-release.aab` from the [Releases page](https://github.com/CrownParkComputing/4DO-Android/releases/latest).
-2. If sideloading the AAB, transfer the file to your Android device.
-3. If sideloading, enable "Install from unknown sources" in your device settings if prompted.
-4. Open the app and follow the on-screen setup prompts.
-5. Launch **4DO Emulator** from your app drawer.
+1. Install from [Google Play](https://play.google.com/store/apps/details?id=com.fourdo.android).
+2. Open the app and follow the on-screen setup prompts.
+3. Launch **4DO Emulator** from your app drawer.
 
 ## Quick Start
 
