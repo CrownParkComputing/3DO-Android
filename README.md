@@ -14,6 +14,16 @@ Android port of 4DO with a Java UI and native emulator/rendering code — a free
 
 For documentation and more information, visit the **[4DO Android Documentation site](https://crownparkcomputing.github.io/4DO-Android/)**.
 
+## What's New in v2.0.6
+
+- **Fixed sideways / mirrored display** on Vulkan devices — games now render upright and correctly oriented.
+- **Major performance boost** — the emulator core is fully optimized, and rendering is decoupled from the display refresh for smoother, faster gameplay.
+- **New 3DO app icon.**
+- **Redesigned controller mapper** — a clean, colour-coded button layout.
+- **Removed the manual display-rotate control** — orientation is now always correct automatically.
+
+**[Update on Google Play »](https://play.google.com/store/apps/details?id=com.fourdo.android)**
+
 ## Screenshots
 
 | | |

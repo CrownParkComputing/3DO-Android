@@ -17,6 +17,16 @@ A free, open-source Android emulator for 3DO software built from the 4DO lineage
 
 Install from **[Google Play](https://play.google.com/store/apps/details?id=com.fourdo.android)**. Android 7.0 (API 24) or later is required.
 
+## What's New in v2.0.6
+
+- **Fixed sideways / mirrored display** on Vulkan devices — games now render upright and correctly oriented.
+- **Major performance boost** — the emulator core is fully optimized, and rendering is decoupled from the display refresh for smoother, faster gameplay.
+- **New 3DO app icon.**
+- **Redesigned controller mapper** — a clean, colour-coded button layout.
+- **Removed the manual display-rotate control** — orientation is now always correct automatically.
+
+**[Update on Google Play »](https://play.google.com/store/apps/details?id=com.fourdo.android)**
+
 ## Screenshots
 
 | | |
