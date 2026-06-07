@@ -42,13 +42,27 @@ static const char* FRAGMENT_SHADER = R"(
 
     // Simple CRT-Lottes inspired effect
     vec3 crt_filter(vec2 uv, vec3 color) {
+        // Barrel distortion / Curvature
+        vec2 centered_uv = uv * 2.0 - 1.0;
+        vec2 distortion = vec2(0.06, 0.08); // More pronounced curvature
+        centered_uv += centered_uv * (centered_uv.yx * centered_uv.yx) * distortion;
+        vec2 curved_uv = centered_uv * 0.5 + 0.5;
+
+        // Mask out areas outside the curved screen
+        if (curved_uv.x < 0.0 || curved_uv.x > 1.0 || curved_uv.y < 0.0 || curved_uv.y > 1.0) {
+            return vec3(0.0);
+        }
+
+        // Re-sample color with curved UV
+        vec3 final_color = texture(uTexture, curved_uv).rgb;
+
         // Simple scanlines
-        float pos = uv.y / uTexelSize.y;
+        float pos = curved_uv.y / uTexelSize.y;
         float scanline = 0.5 + 0.5 * sin(pos * 6.283185 * 1.0); // 1.0 scanlines per texel
         scanline = mix(1.0, scanline, 0.4 * uCrtStrength);
 
         // Phosphor mask (RGB triad)
-        float mask_pos = uv.x / uTexelSize.x * 3.0;
+        float mask_pos = curved_uv.x / uTexelSize.x * 3.0;
         vec3 mask = vec3(1.0);
         float m = fract(mask_pos);
         if (m < 0.33) mask = vec3(1.0, 0.6, 0.6);
@@ -57,10 +71,10 @@ static const char* FRAGMENT_SHADER = R"(
         mask = mix(vec3(1.0), mask, 0.3 * uCrtStrength);
 
         // Vignette
-        vec2 dist = abs(uv - 0.5);
+        vec2 dist = abs(curved_uv - 0.5);
         float vignette = clamp(1.0 - dot(dist, dist) * 1.5, 0.0, 1.0);
 
-        return color * scanline * mask * vignette;
+        return final_color * scanline * mask * vignette;
     }
 
     vec4 sampleFxaa(vec2 uv, float amount) {

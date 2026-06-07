@@ -24,8 +24,6 @@
         app:layout_constraintBottom_toBottomOf="parent" />
 
     <!-- Guidelines for the TV screen area defined in 3do.info (1920x1080 base) -->
-    <!-- Left/Right: 240px margin -> 240/1920 = 0.125 -->
-    <!-- Top/Bottom: 0px margin -> 0.0 to 1.0 -->
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/screen_left"
         android:layout_width="wrap_content"
@@ -54,7 +52,7 @@
         android:orientation="horizontal"
         app:layout_constraintGuide_percent="1.0" />
 
-    <!-- Emulator surface on top, constrained to the precise TV screen area -->
+    <!-- Emulator surface on top, constrained to the TV screen area -->
     <FrameLayout
         android:id="@+id/emulator_surface"
         android:layout_width="0dp"
@@ -97,34 +95,20 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <Button
-        android:id="@+id/crt_toggle_button"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_marginBottom="16dp"
-        android:layout_marginEnd="16dp"
-        android:background="#66000000"
-        android:text="📺"
-        android:textSize="24sp"
-        android:contentDescription="Toggle CRT Filter"
-        android:elevation="4dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
     <ImageButton
-        android:id="@+id/screenshot_button"
+        android:id="@+id/quick_settings_button"
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:layout_marginBottom="16dp"
         android:layout_marginEnd="16dp"
         android:background="#66000000"
-        android:contentDescription="Save Screenshot"
+        android:contentDescription="Settings"
         android:elevation="4dp"
         android:padding="12dp"
-        android:src="@android:drawable/ic_menu_camera"
+        android:src="@android:drawable/ic_menu_manage"
         app:tint="#FFFFFF"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/crt_toggle_button" />
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- Status indicator for current settings -->
     <TextView

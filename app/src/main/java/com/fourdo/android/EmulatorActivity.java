@@ -45,21 +45,12 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private ImageButton pauseButton;
-    private ImageButton screenshotButton;
-    private Button crtToggleButton;
-    
+    private ImageButton quickSettingsButton;
+
     // Quick toolbar buttons
-    private android.widget.ProgressBar loadingOverlaySpinner;
     private View loadingOverlay;
     private TextView loadingText;
     private ImageView emulatorBezel;
-    private Button cdButton;
-    private Button aspectRatioButton;
-    private Button rendererButton;
-    private Button filteringButton;
-    private Button aaButton;
-    private Button crtButton;
-    private Button scaleButton;
     private android.widget.TextView statusIndicator;
     private android.widget.TextView fpsCounter;
     private String appVersion = "";
@@ -124,18 +115,10 @@ public class EmulatorActivity extends AppCompatActivity {
 
     private void bindViews() {
         pauseButton = findViewById(R.id.pause_button);
-        screenshotButton = findViewById(R.id.screenshot_button);
-        crtToggleButton = findViewById(R.id.crt_toggle_button);
+        quickSettingsButton = findViewById(R.id.quick_settings_button);
         emulatorBezel = findViewById(R.id.emulator_bezel);
         loadingOverlay = findViewById(R.id.loading_overlay);
         loadingText = findViewById(R.id.loading_text);
-        cdButton = null;
-        aspectRatioButton = null;
-        rendererButton = null;
-        filteringButton = null;
-        aaButton = null;
-        crtButton = null;
-        scaleButton = null;
         statusIndicator = findViewById(R.id.status_indicator);
         fpsCounter = findViewById(R.id.fps_counter);
     }
@@ -157,102 +140,16 @@ public class EmulatorActivity extends AppCompatActivity {
             }
         });
 
-        screenshotButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                saveScreenshot();
-            }
-        });
-
-        if (crtToggleButton != null) {
-            crtToggleButton.setOnClickListener(new View.OnClickListener() {
+        if (quickSettingsButton != null) {
+            quickSettingsButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    crtShaderEnabled = !crtShaderEnabled;
-                    setCrtShaderEnabled(crtShaderEnabled);
-                    saveSettings();
-                    updateButtonLabels();
-                    updateStatusIndicator();
-                    Toast.makeText(EmulatorActivity.this, "CRT Filter: " + (crtShaderEnabled ? "ON" : "OFF"), Toast.LENGTH_SHORT).show();
+                    showRenderOptionsDialog();
                 }
             });
         }
     }
 
-    /**
-     * Captures the emulator surface and saves a PNG to Pictures/4DO/. The
-     * capture includes everything the user is currently seeing on screen:
-     * the framebuffer, the bezel, and the overlay buttons. This is the
-     * "what is on screen right now" shot we use to confirm whether the
-     * rotation/aspect/letterbox output matches the user's intent.
-     */
-    private static final int REQUEST_SCREENSHOT_PERMISSION = 5;
-
-    private void saveScreenshot() {
-        if (android.os.Build.VERSION.SDK_INT <= 28) {
-            if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{
-                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                        REQUEST_SCREENSHOT_PERMISSION);
-                Toast.makeText(this, "Grant storage permission to save screenshots",
-                        Toast.LENGTH_LONG).show();
-                return;
-            }
-        }
-        if (emulatorSurfaceView == null) {
-            Toast.makeText(this, "Screenshot failed: no surface", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        final View root = findViewById(android.R.id.content);
-        if (root == null) {
-            Toast.makeText(this, "Screenshot failed: no root view", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        // Slightly dim the buttons so they don't dominate the saved image
-        // (the user is taking this shot to inspect the *game*, not the UI).
-        Toast.makeText(this, "Saving screenshot...", Toast.LENGTH_SHORT).show();
-        root.post(new Runnable() {
-            @Override
-            public void run() {
-                Bitmap bitmap = Bitmap.createBitmap(root.getWidth(), root.getHeight(),
-                        Bitmap.Config.ARGB_8888);
-                android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
-                root.draw(canvas);
-                File outDir = new File(android.os.Environment.getExternalStoragePublicDirectory(
-                        android.os.Environment.DIRECTORY_PICTURES), "4DO");
-                if (!outDir.exists()) outDir.mkdirs();
-                String ts = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
-                        .format(new java.util.Date());
-                int rot = getEffectiveRotation();
-                String rotTag = "rot" + rot + "_" + (aspectRatio16by9 ? "16x9" : "4x3");
-                File outFile = new File(outDir, "4DO_" + rotTag + "_" + ts + ".png");
-                // Burn the current rotation/aspect into the top-left of the
-                // image as a small label so the saved PNG self-describes
-                // (no need to remember which slot you were on).
-                android.graphics.Paint labelPaint = new android.graphics.Paint();
-                labelPaint.setColor(0xFF00FF00);
-                labelPaint.setTextSize(48);
-                labelPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
-                labelPaint.setAntiAlias(true);
-                labelPaint.setShadowLayer(2, 1, 1, 0xFF000000);
-                canvas.drawText("4DO " + rotTag, 16, 56, labelPaint);
-                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(outFile)) {
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
-                    fos.flush();
-                    Toast.makeText(EmulatorActivity.this,
-                            "Saved: " + outFile.getAbsolutePath(),
-                            Toast.LENGTH_LONG).show();
-                } catch (java.io.IOException e) {
-                    Toast.makeText(EmulatorActivity.this,
-                            "Screenshot failed: " + e.getMessage(),
-                            Toast.LENGTH_LONG).show();
-                } finally {
-                    bitmap.recycle();
-                }
-            }
-        });
-    }
 
     private void setupEmulatorSurface() {
         FrameLayout surfaceContainer = findViewById(R.id.emulator_surface);
@@ -336,25 +233,6 @@ public class EmulatorActivity extends AppCompatActivity {
         startActivityForResult(intent, REQUEST_FILE_PICKER);
     }
 
-    private void openLoadCdBrowser() {
-        String libraryPath = EmulatorPathStore.getSavedLibraryFolder(this);
-        if (EmulatorPathStore.isValidDirectoryPath(libraryPath)) {
-            Intent intent = new Intent(this, GameLibraryActivity.class);
-            intent.putExtra(GameLibraryActivity.EXTRA_LIBRARY_PATH, libraryPath);
-            intent.putExtra(GameLibraryActivity.EXTRA_PICK_MODE, true);
-            startActivityForResult(intent, REQUEST_LOAD_CD_PICKER);
-        } else {
-            Intent intent = SafFileImporter.createOpenDocumentIntent();
-            startActivityForResult(intent, REQUEST_LOAD_CD_PICKER);
-        }
-    }
-
-    private void ejectCdImage() {
-        // Eject CD and clear NVRAM
-        if (emulatorLoadCdImage(null)) {
-            Toast.makeText(this, R.string.cd_ejected, Toast.LENGTH_SHORT).show();
-        }
-    }
 
     private void openControllerMap() {
         Intent intent = new Intent(this, NewControllerMapperActivity.class);
@@ -362,84 +240,8 @@ public class EmulatorActivity extends AppCompatActivity {
     }
     
     private void setupQuickToolbar() {
-        // CD button - long press to load CD
-        if (cdButton != null) {
-            cdButton.setOnLongClickListener(new View.OnLongClickListener() {
-                @Override
-                public boolean onLongClick(View v) {
-                    ejectCdImage();
-                    showStatusToast("CD ejected");
-                    return true;
-                }
-            });
-            cdButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    openLoadCdBrowser();
-                    showStatusToast("Load CD...");
-                }
-            });
-        }
-
-        // Open options menu from any render-option toolbar button
-        if (aspectRatioButton != null) {
-            aspectRatioButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showRenderOptionsDialog();
-                }
-            });
-        }
-
-        if (rendererButton != null) {
-            rendererButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showRenderOptionsDialog();
-                }
-            });
-        }
-
-        if (filteringButton != null) {
-            filteringButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showRenderOptionsDialog();
-                }
-            });
-        }
-
-        // Options button opens dropdown menu directly
-        if (aaButton != null) {
-            aaButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showRenderOptionsDialog();
-                }
-            });
-        }
-
-        if (crtButton != null) {
-            crtButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showRenderOptionsDialog();
-                }
-            });
-        }
-
-        if (scaleButton != null) {
-            scaleButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showRenderOptionsDialog();
-                }
-            });
-        }
-        
         // Update status indicator
         updateStatusIndicator();
-        
     }
 
     private String[] getResolutionScaleOptions() {
@@ -533,13 +335,12 @@ public class EmulatorActivity extends AppCompatActivity {
         root.addView(aaSpinner);
 
         TextView crtLabel = new TextView(this);
-        crtLabel.setText("CRT Shader");
+        crtLabel.setText("CRT Filter");
         root.addView(crtLabel);
-        Spinner crtSpinner = new Spinner(this);
-        String[] crtOptions = {"Off", "On"};
-        crtSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, crtOptions));
-        crtSpinner.setSelection(crtShaderEnabled ? 1 : 0);
-        root.addView(crtSpinner);
+        androidx.appcompat.widget.SwitchCompat crtSwitch = new androidx.appcompat.widget.SwitchCompat(this);
+        crtSwitch.setChecked(crtShaderEnabled);
+        crtSwitch.setText("CRT Scanlines \u0026 Curvature");
+        root.addView(crtSwitch);
 
         TextView resLabel = new TextView(this);
         resLabel.setText("Resolution");
@@ -628,20 +429,16 @@ public class EmulatorActivity extends AppCompatActivity {
             public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
 
-        crtSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+        crtSwitch.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
             @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                boolean newCrt = (position == 1);
-                if (!ready[0] || crtShaderEnabled == newCrt) return;
-                crtShaderEnabled = newCrt;
+            public void onCheckedChanged(android.widget.CompoundButton buttonView, boolean isChecked) {
+                if (!ready[0] || crtShaderEnabled == isChecked) return;
+                crtShaderEnabled = isChecked;
                 setCrtShaderEnabled(crtShaderEnabled);
                 saveSettings();
                 updateButtonLabels();
                 updateStatusIndicator();
             }
-
-            @Override
-            public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
 
         resSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
@@ -670,10 +467,15 @@ public class EmulatorActivity extends AppCompatActivity {
 
         ready[0] = true;
 
-        // Flip controls removed: renderer will remain unflipped at runtime
-
         builder.setView(scroll);
         builder.setPositiveButton("Close", null);
+        builder.setNeutralButton("Settings", new android.content.DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(android.content.DialogInterface dialog, int which) {
+                Intent intent = new Intent(EmulatorActivity.this, SettingsActivity.class);
+                startActivity(intent);
+            }
+        });
         builder.show();
     }
 
@@ -858,36 +660,6 @@ public class EmulatorActivity extends AppCompatActivity {
     }
     
     private void updateButtonLabels() {
-        // Update aspect ratio button
-        if (aspectRatioButton != null) {
-            aspectRatioButton.setText("📺");
-        }
-        
-        // Update renderer button
-        if (rendererButton != null) {
-            rendererButton.setText("🎮");
-        }
-        
-        // Update filtering button
-        if (filteringButton != null) {
-            filteringButton.setText("🔍");
-        }
-
-        // Update anti-aliasing button
-        if (aaButton != null) {
-            aaButton.setText("⚙");
-        }
-
-        // Update CRT and scale buttons
-        if (crtButton != null) {
-            crtButton.setText(crtShaderEnabled ? "📺" : "⬜");
-        }
-        if (crtToggleButton != null) {
-            crtToggleButton.setBackgroundColor(crtShaderEnabled ? 0xAA4488FF : 0x66000000);
-        }
-        if (scaleButton != null) {
-            scaleButton.setText(getEffectiveResolutionLabel());
-        }
     }
     
     private void startFpsCounter() {
@@ -948,15 +720,6 @@ public class EmulatorActivity extends AppCompatActivity {
         }
     }
 
-    private boolean emulatorLoadCdImage(String gamePath) {
-        try {
-            Class<?> clazz = Class.forName("com.fourdo.android.EmulatorActivity");
-            java.lang.reflect.Method method = clazz.getMethod("loadCdImage", String.class);
-            return (boolean) method.invoke(this, gamePath);
-        } catch (Exception e) {
-            return false;
-        }
-    }
     
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {

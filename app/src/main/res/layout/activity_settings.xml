@@ -229,6 +229,16 @@
                     android:layout_marginBottom="12dp" />
 
                 <Switch
+                    android:id="@+id/crt_switch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:text="@string/crt_filter"
+                    android:textColor="#FFFFFF"
+                    android:thumbTint="#4488FF"
+                    android:trackTint="#252547" />
+
+                <Switch
                     android:id="@+id/bezel_switch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

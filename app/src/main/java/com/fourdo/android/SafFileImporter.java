@@ -56,18 +56,52 @@ final class SafFileImporter {
         takePersistableReadPermission(context, uri);
 
         String displayName = getDisplayName(context, uri);
-        if (!displayName.toLowerCase().endsWith(".so")) {
-            throw new IOException("Selected file is not a Vulkan driver (.so)");
-        }
-
+        String lowerName = displayName.toLowerCase();
+        
         File driverDir = new File(context.getFilesDir(), DRIVER_DIR_NAME);
         if (!driverDir.exists() && !driverDir.mkdirs()) {
             throw new IOException("Failed to create drivers directory");
         }
 
-        File destFile = new File(driverDir, sanitizeName(displayName));
-        copyUriToFile(context, uri, destFile);
-        return destFile.getAbsolutePath();
+        if (lowerName.endsWith(".so")) {
+            File destFile = new File(driverDir, sanitizeName(displayName));
+            copyUriToFile(context, uri, destFile);
+            return destFile.getAbsolutePath();
+        } else if (lowerName.endsWith(".zip")) {
+            // Extract .so from ZIP
+            android.util.Log.d("SafFileImporter", "Attempting to extract driver from ZIP: " + displayName);
+            try (InputStream is = context.getContentResolver().openInputStream(uri);
+                 java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(is)) {
+                
+                java.util.zip.ZipEntry entry;
+                while ((entry = zis.getNextEntry()) != null) {
+                    android.util.Log.d("SafFileImporter", "ZIP entry: " + entry.getName());
+                    if (!entry.isDirectory() && entry.getName().toLowerCase().endsWith(".so")) {
+                        // Found a driver, extract it
+                        String fileName = new File(entry.getName()).getName();
+                        File destFile = new File(driverDir, sanitizeName(fileName));
+                        android.util.Log.d("SafFileImporter", "Extracting driver to: " + destFile.getAbsolutePath());
+                        
+                        try (FileOutputStream fos = new FileOutputStream(destFile)) {
+                            byte[] buffer = new byte[8192];
+                            int len;
+                            while ((len = zis.read(buffer)) > 0) {
+                                fos.write(buffer, 0, len);
+                            }
+                        }
+                        zis.closeEntry();
+                        return destFile.getAbsolutePath();
+                    }
+                    zis.closeEntry();
+                }
+            } catch (Exception e) {
+                android.util.Log.e("SafFileImporter", "ZIP extraction failed", e);
+                throw new IOException("ZIP extraction failed: " + e.getMessage());
+            }
+            throw new IOException("No .so driver file found in ZIP");
+        } else {
+            throw new IOException("Selected file is not a Vulkan driver (.so) or ZIP containing one");
+        }
     }
 
     static String importBios(Context context, Uri uri) throws IOException {

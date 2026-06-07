@@ -20,7 +20,7 @@ void main() {
     if ((pc.flags & 4u) != 0u) { // CRT enabled
         // Barrel distortion / Curvature
         vec2 centered_uv = uv * 2.0 - 1.0;
-        vec2 distortion = vec2(0.04, 0.06); // Curvature strength
+        vec2 distortion = vec2(0.06, 0.08); // More pronounced curvature
         centered_uv += centered_uv * (centered_uv.yx * centered_uv.yx) * distortion;
         uv = centered_uv * 0.5 + 0.5;
 

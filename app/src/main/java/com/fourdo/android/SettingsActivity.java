@@ -38,6 +38,7 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_BEZEL_ENABLED = "bezel_enabled";
     public static final String KEY_DISPLAY_ROTATION = "display_rotation";
     public static final String KEY_VULKAN_DRIVER_PATH = "vulkan_driver_path";
+    public static final String KEY_CRT_ENABLED = "crt_shader_enabled";
 
     // Display rotation modes. 0 = follow device orientation (the default);
     // 1..4 = force a fixed 0/90/180/270 deg rotation in the shader.
@@ -84,6 +85,7 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView vulkanDriverPathText;
     private Switch debugOverlaySwitch;
     private Switch bezelSwitch;
+    private Switch crtSwitch;
     private Spinner viewStyleSpinner;
     private Spinner rendererSpinner;
     private Spinner filteringSpinner;
@@ -112,6 +114,7 @@ public class SettingsActivity extends AppCompatActivity {
         vulkanDriverPathText = findViewById(R.id.vulkan_driver_path_text);
         debugOverlaySwitch = findViewById(R.id.debug_overlay_switch);
         bezelSwitch = findViewById(R.id.bezel_switch);
+        crtSwitch = findViewById(R.id.crt_switch);
         viewStyleSpinner = findViewById(R.id.view_style_spinner);
         rendererSpinner = findViewById(R.id.renderer_spinner);
         filteringSpinner = findViewById(R.id.filtering_spinner);
@@ -126,6 +129,7 @@ public class SettingsActivity extends AppCompatActivity {
         setupRegionSpinner();
         setupDebugOverlaySwitch();
         setupBezelSwitch();
+        setupCrtSwitch();
 
         selectBiosButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -390,6 +394,22 @@ public class SettingsActivity extends AppCompatActivity {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
                 prefs.edit().putBoolean(KEY_BEZEL_ENABLED, isChecked).apply();
+            }
+        });
+    }
+
+    private void setupCrtSwitch() {
+        if (crtSwitch == null) {
+            return;
+        }
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        crtSwitch.setChecked(prefs.getBoolean(KEY_CRT_ENABLED, false));
+        crtSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                prefs.edit().putBoolean(KEY_CRT_ENABLED, isChecked).apply();
             }
         });
     }
