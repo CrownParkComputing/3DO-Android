@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -133,20 +132,10 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private void setupActivityButtons() {
-        pauseButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showPauseMenu();
-            }
-        });
+        pauseButton.setOnClickListener(v -> showPauseMenu());
 
         if (quickSettingsButton != null) {
-            quickSettingsButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showRenderOptionsDialog();
-                }
-            });
+            quickSettingsButton.setOnClickListener(v -> showRenderOptionsDialog());
         }
     }
 
@@ -160,19 +149,19 @@ public class EmulatorActivity extends AppCompatActivity {
 
         emulatorSurfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override
-            public void surfaceCreated(SurfaceHolder holder) {
+            public void surfaceCreated(@androidx.annotation.NonNull SurfaceHolder holder) {
                 // Don't set surface yet - wait for surfaceChanged with proper size
             }
 
             @Override
-            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+            public void surfaceChanged(@androidx.annotation.NonNull SurfaceHolder holder, int format, int width, int height) {
                 if (width > 0 && height > 0) {
                     applyRendererDefaults(width, height, holder.getSurface());
                 }
             }
 
             @Override
-            public void surfaceDestroyed(SurfaceHolder holder) {
+            public void surfaceDestroyed(@androidx.annotation.NonNull SurfaceHolder holder) {
                 setSurface(null);
             }
         });
@@ -339,7 +328,7 @@ public class EmulatorActivity extends AppCompatActivity {
         root.addView(crtLabel);
         androidx.appcompat.widget.SwitchCompat crtSwitch = new androidx.appcompat.widget.SwitchCompat(this);
         crtSwitch.setChecked(crtShaderEnabled);
-        crtSwitch.setText("CRT Scanlines \u0026 Curvature");
+        crtSwitch.setText("CRT Scanlines & Curvature");
         root.addView(crtSwitch);
 
         TextView resLabel = new TextView(this);
@@ -605,14 +594,10 @@ public class EmulatorActivity extends AppCompatActivity {
         }
 
         if (debugModeEnabled) {
-            statusIndicator.setText(
-                    "Renderer: " + renderer + "\n" +
-                    "Aspect: " + aspect + "   Filter: " + filter + "   " + aa + "   " + crt + "\n" +
-                    "Resolution: " + output + "\n" +
-                    targetInfo
-            );
+            statusIndicator.setText(getString(R.string.status_debug_info,
+                    renderer, aspect, filter, aa, crt, output, targetInfo));
         } else {
-            statusIndicator.setText("v" + appVersion + " | " + renderer + " | " + output);
+            statusIndicator.setText(String.format("v%s | %s | %s", appVersion, renderer, output));
         }
     }
 

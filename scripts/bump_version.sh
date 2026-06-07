@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version bumping script for 4DO Android
+# Version bumping script for 4DO Android.
 # Usage: ./scripts/bump_version.sh [major|minor|patch]
 # Default: patch
 
@@ -93,11 +93,8 @@ commit_changes() {
     
     git add app/build.gradle
     git commit -m "Bump version to $new_version (code: $new_version_code)"
-    
-    # Create tag
-    git tag "v$new_version"
-    
-    print_status "Committed changes and created tag v$new_version"
+
+    print_status "Committed version bump"
 }
 
 # Function to cleanup
@@ -149,7 +146,6 @@ print_warning "This will:"
 print_warning "  - Update versionName from $current_version to $new_version"
 print_warning "  - Update versionCode from $current_version_code to $new_version_code"
 print_warning "  - Create a new commit"
-print_warning "  - Create a new tag: v$new_version"
 echo
 read -p "Do you want to proceed? (y/N): " -n 1 -r
 echo
@@ -167,4 +163,3 @@ commit_changes "$new_version" "$new_version_code"
 print_status "Version bump completed successfully!"
 print_status "New version: $new_version"
 print_status "New version code: $new_version_code"
-print_status "Tag created: v$new_version"

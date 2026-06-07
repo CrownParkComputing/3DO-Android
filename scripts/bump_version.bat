@@ -1,5 +1,5 @@
 @echo off
-REM Version bumping script for 4DO Android
+REM Version bumping script for 4DO Android.
 REM Usage: bump_version.bat [major|minor|patch]
 REM Default: patch
 
@@ -77,7 +77,6 @@ echo [WARNING] This will:
 echo   - Update versionName from %current_version% to %new_version%
 echo   - Update versionCode from %current_version_code% to %new_version_code%
 echo   - Create a new commit
-echo   - Create a new tag: v%new_version%
 echo.
 set /p "confirm=Do you want to proceed? (y/N): "
 
@@ -101,14 +100,10 @@ REM Commit changes
 git add app\build.gradle
 git commit -m "Bump version to %new_version% (code: %new_version_code%)"
 
-REM Create tag
-git tag "v%new_version%"
-
-echo [INFO] Committed changes and created tag v%new_version%
+echo [INFO] Committed version bump
 echo [INFO] Version bump completed successfully!
 echo [INFO] New version: %new_version%
 echo [INFO] New version code: %new_version_code%
-echo [INFO] Tag created: v%new_version%
 
 REM Cleanup backup
 if exist app\build.gradle.backup del app\build.gradle.backup

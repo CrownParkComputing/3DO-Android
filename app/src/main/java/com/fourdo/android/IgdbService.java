@@ -51,13 +51,10 @@ public class IgdbService {
         public String name;
         public String summary;
         public String coverUrl;
-        public String localCoverPath;
         public List<String> screenshots = new ArrayList<>();
         public List<String> platforms = new ArrayList<>();
         public String releaseDate;
         public String publisher;
-        public String romFileName; // Local ROM file name
-        public String romFilePath; // Local ROM file path
     }
     
     public interface GamesCallback {
@@ -375,7 +372,9 @@ public class IgdbService {
             try {
                 // Check disk cache first
                 File cacheDir = new File(context.getCacheDir(), "covers");
-                if (!cacheDir.exists()) cacheDir.mkdirs();
+                if (!cacheDir.exists() && !cacheDir.mkdirs()) {
+                    Log.w(TAG, "Failed to create covers cache directory");
+                }
                 
                 File cachedFile = new File(cacheDir, gameId + "_cover.jpg");
                 if (cachedFile.exists()) {
@@ -441,7 +440,7 @@ public class IgdbService {
                 if (item.has("first_release_date") && !item.isNull("first_release_date")) {
                     long timestamp = item.optLong("first_release_date", 0) * 1000;
                     if (timestamp > 0) {
-                        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy");
+                        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy", java.util.Locale.US);
                         game.releaseDate = sdf.format(new java.util.Date(timestamp));
                     }
                 }

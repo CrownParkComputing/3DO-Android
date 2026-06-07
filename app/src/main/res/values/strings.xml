@@ -83,4 +83,5 @@
     <string name="vulkan_driver_imported">Vulkan driver imported</string>
     <string name="vulkan_driver_failed">Driver import failed: %1$s</string>
     <string name="crt_filter">CRT Filter</string>
+    <string name="status_debug_info">Renderer: %1$s\nAspect: %2$s   Filter: %3$s   %4$s   %5$s\nResolution: %6$s\n%7$s</string>
 </resources>

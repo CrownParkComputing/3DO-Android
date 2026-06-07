@@ -14,6 +14,7 @@ local.properties
 .cxx/
 */.cxx/
 .externalNativeBuild/
+app/cpp/renderers/shaders/*.spv
 
 # Logs
 *.log
