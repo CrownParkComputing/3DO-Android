@@ -32,9 +32,9 @@ public class IgdbService {
     private static final String PLATFORM_3DO_NAME = "3DO";
     private static final String GAME_FIELDS = "name, cover.url, summary, first_release_date, screenshots.url, platforms.name, involved_companies.company.name, involved_companies.publisher";
     
-    // IGDB API credentials
-    private static final String CLIENT_ID = "r1xsns8dbmeb0xxualwaotref8o9ti";
-    private static final String CLIENT_SECRET = "d30omhdyjuebh9h8c6jvg5cntz75n7";
+    // IGDB API credentials from BuildConfig
+    private static final String CLIENT_ID = BuildConfig.IGDB_CLIENT_ID;
+    private static final String CLIENT_SECRET = BuildConfig.IGDB_CLIENT_SECRET;
     
     private static IgdbService instance;
     private String accessToken;

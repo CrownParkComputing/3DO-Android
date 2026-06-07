@@ -15,12 +15,19 @@ android {
         versionCode 8
         versionName "2.0.6"
 
+        buildConfigField "String", "IGDB_CLIENT_ID", "\"r1xsns8dbmeb0xxualwaotref8o9ti\""
+        buildConfigField "String", "IGDB_CLIENT_SECRET", "\"d30omhdyjuebh9h8c6jvg5cntz75n7\""
+
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17 -frtti -fexceptions"
                 arguments "-DANDROID_STL=c++_static"
             }
         }
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     signingConfigs {

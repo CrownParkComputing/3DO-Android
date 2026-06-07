@@ -98,6 +98,10 @@ void VulkanRenderer::cleanup() {
     if (m_device) vkDestroyDevice(m_device, nullptr);
     if (m_surface) vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
     if (m_instance) vkDestroyInstance(m_instance, nullptr);
+    if (m_driverHandle) {
+        dlclose(m_driverHandle);
+        m_driverHandle = nullptr;
+    }
     m_instance = VK_NULL_HANDLE;
     m_surface = VK_NULL_HANDLE;
     m_physicalDevice = VK_NULL_HANDLE;
@@ -141,15 +145,14 @@ void VulkanRenderer::cleanupSwapchain() {
 }
 
 bool VulkanRenderer::createInstance() {
-    void* handle = nullptr;
     auto createInstanceFn = vkCreateInstance;
 
     if (!m_driverPath.empty()) {
-        handle = dlopen(m_driverPath.c_str(), RTLD_NOW | RTLD_LOCAL);
-        if (handle) {
+        m_driverHandle = dlopen(m_driverPath.c_str(), RTLD_NOW | RTLD_LOCAL);
+        if (m_driverHandle) {
             LOGI("Loaded custom Vulkan driver: %s", m_driverPath.c_str());
-            auto getProcAddr = (PFN_vkGetInstanceProcAddr)dlsym(handle, "vk_icdGetInstanceProcAddr");
-            if (!getProcAddr) getProcAddr = (PFN_vkGetInstanceProcAddr)dlsym(handle, "vkGetInstanceProcAddr");
+            auto getProcAddr = (PFN_vkGetInstanceProcAddr)dlsym(m_driverHandle, "vk_icdGetInstanceProcAddr");
+            if (!getProcAddr) getProcAddr = (PFN_vkGetInstanceProcAddr)dlsym(m_driverHandle, "vkGetInstanceProcAddr");
 
             if (getProcAddr) {
                 createInstanceFn = (PFN_vkCreateInstance)getProcAddr(nullptr, "vkCreateInstance");

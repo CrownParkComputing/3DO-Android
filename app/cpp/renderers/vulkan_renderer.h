@@ -88,6 +88,7 @@ private:
     bool m_flipY = false;
     int  m_rotation = 0; // 0=0deg, 1=90deg, 2=180deg, 3=270deg
     std::string m_driverPath;
+    void* m_driverHandle = nullptr;
     bool m_initialized = false;
     std::string m_rendererName = "Vulkan";
 
