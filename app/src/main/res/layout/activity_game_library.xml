@@ -14,36 +14,6 @@
         android:gravity="end|center_vertical"
         android:background="#252547">
 
-        <Button
-            android:id="@+id/refresh_button"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:minWidth="96dp"
-            android:text="Refresh"
-            android:textAllCaps="false"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:backgroundTint="#4488FF"
-            android:contentDescription="Refresh Library"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:layout_marginStart="4dp" />
-
-        <Button
-            android:id="@+id/change_library_button"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:minWidth="96dp"
-            android:text="Library"
-            android:textAllCaps="false"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:backgroundTint="#666666"
-            android:contentDescription="Change Game Library"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:layout_marginStart="8dp" />
-
         <ImageButton
             android:id="@+id/view_toggle_button"
             android:layout_width="48dp"

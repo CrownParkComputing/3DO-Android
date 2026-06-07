@@ -18,6 +18,7 @@ final class SafFileImporter {
 
     private static final String BIOS_DIR_NAME = "bios";
     private static final String LIBRARY_DIR_NAME = "library";
+    private static final String DRIVER_DIR_NAME = "drivers";
 
     private SafFileImporter() {
     }
@@ -49,6 +50,24 @@ final class SafFileImporter {
         intent.addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
         intent.putExtra("android.content.extra.SHOW_ADVANCED", true);
         return intent;
+    }
+
+    static String importVulkanDriver(Context context, Uri uri) throws IOException {
+        takePersistableReadPermission(context, uri);
+
+        String displayName = getDisplayName(context, uri);
+        if (!displayName.toLowerCase().endsWith(".so")) {
+            throw new IOException("Selected file is not a Vulkan driver (.so)");
+        }
+
+        File driverDir = new File(context.getFilesDir(), DRIVER_DIR_NAME);
+        if (!driverDir.exists() && !driverDir.mkdirs()) {
+            throw new IOException("Failed to create drivers directory");
+        }
+
+        File destFile = new File(driverDir, sanitizeName(displayName));
+        copyUriToFile(context, uri, destFile);
+        return destFile.getAbsolutePath();
     }
 
     static String importBios(Context context, Uri uri) throws IOException {

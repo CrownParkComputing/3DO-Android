@@ -37,6 +37,7 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_REGION = "region";
     public static final String KEY_BEZEL_ENABLED = "bezel_enabled";
     public static final String KEY_DISPLAY_ROTATION = "display_rotation";
+    public static final String KEY_VULKAN_DRIVER_PATH = "vulkan_driver_path";
 
     // Display rotation modes. 0 = follow device orientation (the default);
     // 1..4 = force a fixed 0/90/180/270 deg rotation in the shader.
@@ -53,6 +54,7 @@ public class SettingsActivity extends AppCompatActivity {
     
     // Renderer types - must match native code
     public static final int RENDERER_AUTO = 0;
+    public static final int RENDERER_OPENGL_ES = 1;
     public static final int RENDERER_VULKAN = 2;
     public static final int RENDERER_SOFTWARE = 3;
     
@@ -67,15 +69,19 @@ public class SettingsActivity extends AppCompatActivity {
     
     private static final int REQUEST_BIOS_PICKER = 1;
     private static final int REQUEST_LIBRARY_PICKER = 2;
+    private static final int REQUEST_VULKAN_DRIVER_PICKER = 3;
 
     private Button backButton;
     private Button selectBiosButton;
     private Button selectLibraryButton;
+    private Button selectVulkanDriverButton;
+    private Button resetVulkanDriverButton;
     private Button controllerMapperButton;
     private Button clearCacheButton;
     private Button viewLogsButton;
     private TextView biosPathText;
     private TextView libraryPathText;
+    private TextView vulkanDriverPathText;
     private Switch debugOverlaySwitch;
     private Switch bezelSwitch;
     private Spinner viewStyleSpinner;
@@ -96,11 +102,14 @@ public class SettingsActivity extends AppCompatActivity {
         backButton = findViewById(R.id.back_button);
         selectBiosButton = findViewById(R.id.select_bios_button);
         selectLibraryButton = findViewById(R.id.select_library_button);
+        selectVulkanDriverButton = findViewById(R.id.select_vulkan_driver_button);
+        resetVulkanDriverButton = findViewById(R.id.reset_vulkan_driver_button);
         controllerMapperButton = findViewById(R.id.controller_mapper_button);
         clearCacheButton = findViewById(R.id.clear_cache_button);
         viewLogsButton = findViewById(R.id.view_logs_button);
         biosPathText = findViewById(R.id.bios_path_text);
         libraryPathText = findViewById(R.id.library_path_text);
+        vulkanDriverPathText = findViewById(R.id.vulkan_driver_path_text);
         debugOverlaySwitch = findViewById(R.id.debug_overlay_switch);
         bezelSwitch = findViewById(R.id.bezel_switch);
         viewStyleSpinner = findViewById(R.id.view_style_spinner);
@@ -110,6 +119,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         refreshBiosPathText();
         refreshLibraryPathText();
+        refreshVulkanDriverPathText();
         setupViewStyleSpinner();
         setupRendererSpinner();
         setupFilteringSpinner();
@@ -130,6 +140,24 @@ public class SettingsActivity extends AppCompatActivity {
             public void onClick(View v) {
                 Intent intent = SafFileImporter.createOpenDocumentTreeIntent();
                 startActivityForResult(intent, REQUEST_LIBRARY_PICKER);
+            }
+        });
+
+        selectVulkanDriverButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = SafFileImporter.createOpenDocumentIntent();
+                startActivityForResult(intent, REQUEST_VULKAN_DRIVER_PICKER);
+            }
+        });
+
+        resetVulkanDriverButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                prefs.edit().remove(KEY_VULKAN_DRIVER_PATH).apply();
+                refreshVulkanDriverPathText();
+                Toast.makeText(SettingsActivity.this, getString(R.string.vulkan_driver_reset), Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -243,7 +271,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
     
     private void setupRendererSpinner() {
-        String[] renderers = {"Vulkan", "Software"};
+        String[] renderers = {"Vulkan", "OpenGL ES", "Software"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, renderers);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         rendererSpinner.setAdapter(adapter);
@@ -251,14 +279,21 @@ public class SettingsActivity extends AppCompatActivity {
         // Load saved preference
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         int savedRenderer = normalizeRendererType(prefs.getInt(KEY_RENDERER_TYPE, RENDERER_VULKAN));
-        rendererSpinner.setSelection(savedRenderer == RENDERER_SOFTWARE ? 1 : 0);
+        
+        int selection = 0;
+        if (savedRenderer == RENDERER_OPENGL_ES) selection = 1;
+        else if (savedRenderer == RENDERER_SOFTWARE) selection = 2;
+        
+        rendererSpinner.setSelection(selection);
         prefs.edit().putInt(KEY_RENDERER_TYPE, savedRenderer).apply();
         
         rendererSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                int rendererType = position == 1 ? RENDERER_SOFTWARE : RENDERER_VULKAN;
+                int rendererType = RENDERER_VULKAN;
+                if (position == 1) rendererType = RENDERER_OPENGL_ES;
+                else if (position == 2) rendererType = RENDERER_SOFTWARE;
                 prefs.edit().putInt(KEY_RENDERER_TYPE, rendererType).apply();
             }
 
@@ -269,11 +304,8 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private int normalizeRendererType(int rendererType) {
-        if (rendererType == RENDERER_VULKAN) {
-            return RENDERER_VULKAN;
-        }
-        if (rendererType == RENDERER_SOFTWARE) {
-            return RENDERER_SOFTWARE;
+        if (rendererType == RENDERER_VULKAN || rendererType == RENDERER_OPENGL_ES || rendererType == RENDERER_SOFTWARE) {
+            return rendererType;
         }
         return RENDERER_VULKAN;
     }
@@ -403,6 +435,21 @@ public class SettingsActivity extends AppCompatActivity {
                 }, "settings-library-import").start();
             }
         }
+
+        if (requestCode == REQUEST_VULKAN_DRIVER_PICKER && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri != null) {
+                try {
+                    String driverPath = SafFileImporter.importVulkanDriver(this, uri);
+                    SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                    prefs.edit().putString(KEY_VULKAN_DRIVER_PATH, driverPath).apply();
+                    refreshVulkanDriverPathText();
+                    Toast.makeText(this, getString(R.string.vulkan_driver_imported), Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Toast.makeText(this, getString(R.string.vulkan_driver_failed, e.getMessage()), Toast.LENGTH_LONG).show();
+                }
+            }
+        }
     }
 
     private void refreshBiosPathText() {
@@ -424,6 +471,16 @@ public class SettingsActivity extends AppCompatActivity {
             libraryPathText.setText(getString(R.string.library_path_value, getDisplayPath(libraryPath)));
         }
     }
+
+    private void refreshVulkanDriverPathText() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String driverPath = prefs.getString(KEY_VULKAN_DRIVER_PATH, "");
+        if (driverPath == null || driverPath.isEmpty()) {
+            vulkanDriverPathText.setText(getString(R.string.vulkan_driver_system));
+        } else {
+            vulkanDriverPathText.setText(getDisplayPath(driverPath));
+        }
+    }
     
     private String getDisplayPath(String path) {
         if (path == null || path.isEmpty()) {
@@ -438,6 +495,11 @@ public class SettingsActivity extends AppCompatActivity {
         if (path.startsWith(biosDir.getAbsolutePath())) {
             String relative = path.substring(biosDir.getAbsolutePath().length());
             return relative.isEmpty() ? "Managed BIOS" : "Managed BIOS" + relative;
+        }
+        File driverDir = new File(getFilesDir(), "drivers");
+        if (path.startsWith(driverDir.getAbsolutePath())) {
+            String relative = path.substring(driverDir.getAbsolutePath().length());
+            return relative.isEmpty() ? "Managed Driver" : "Managed Driver" + relative;
         }
         return path;
     }

@@ -75,6 +75,11 @@ public:
     virtual void setFlipVertical(bool enabled) = 0;
 
     /**
+     * Set custom Vulkan driver path.
+     */
+    virtual void setVulkanDriverPath(const char* path) {}
+
+    /**
      * Set the device rotation in degrees (0, 90, 180, 270). The renderer is
      * expected to apply this to its output (e.g. by rotating the rendered quad
      * in the vertex shader). Safe to call before initialization. Unknown

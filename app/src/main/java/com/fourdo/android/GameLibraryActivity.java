@@ -49,7 +49,6 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
     private static final String TAG = "GameLibrary";
     private static final Pattern VERSION_SUFFIX_PATTERN = Pattern.compile("(?i)\\bv\\d+(?:\\.\\d+)*\\b");
     private static final int MAX_CONCURRENT_IGDB_REQUESTS = 3;
-    private static final int REQUEST_LIBRARY_PICKER = 100;
 
     public static final String EXTRA_LIBRARY_PATH = "library_path";
     public static final String EXTRA_PICK_MODE = "pick_mode";
@@ -61,8 +60,6 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
     private ImageButton settingsButton;
     private ImageButton searchButton;
     private ImageButton viewToggleBtn;
-    private Button refreshButton;
-    private Button changeLibraryButton;
 
     private final List<GameItem> gameItems = new ArrayList<>();
     private GameGridAdapter adapter;
@@ -107,8 +104,6 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         settingsButton = findViewById(R.id.settings_button);
         searchButton = findViewById(R.id.search_button);
         viewToggleBtn = findViewById(R.id.view_toggle_button);
-        refreshButton = findViewById(R.id.refresh_button);
-        changeLibraryButton = findViewById(R.id.change_library_button);
 
         igdbService = IgdbService.getInstance(this);
 
@@ -118,8 +113,6 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
 
         // View toggle button
         viewToggleBtn.setOnClickListener(v -> cycleViewStyle());
-        refreshButton.setOnClickListener(v -> refreshLibrary());
-        changeLibraryButton.setOnClickListener(v -> openLibraryPicker());
 
         log("GameLibraryActivity onCreate");
 
@@ -181,72 +174,9 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         loadGames(root);
     }
 
-    private void openLibraryPicker() {
-        Intent intent = SafFileImporter.createOpenDocumentTreeIntent();
-        startActivityForResult(intent, REQUEST_LIBRARY_PICKER);
-    }
-
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode != REQUEST_LIBRARY_PICKER) {
-            return;
-        }
-
-        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
-            Toast.makeText(this, "Library unchanged", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        Uri uri = data.getData();
-        loadingProgress.setVisibility(View.VISIBLE);
-        statusText.setText("Importing library...");
-        statusText.setVisibility(View.VISIBLE);
-        Toast.makeText(this, "Importing library...", Toast.LENGTH_SHORT).show();
-
-        new Thread(() -> {
-            try {
-                SafFileImporter.ImportResult result = SafFileImporter.importLibraryTree(this, uri);
-                SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
-                prefs.edit()
-                        .putString(SettingsActivity.KEY_LIBRARY_FOLDER, result.path)
-                        .putBoolean(SettingsActivity.KEY_LIBRARY_REFRESH_REQUIRED, true)
-                        .apply();
-
-                libraryPath = result.path;
-                File root = new File(libraryPath);
-                runOnUiThread(() -> {
-                    Toast.makeText(this, "Imported " + result.importedFileCount + " library files", Toast.LENGTH_SHORT).show();
-                    loadGames(root);
-                });
-            } catch (Exception e) {
-                log("Library import failed: " + e.getMessage());
-                runOnUiThread(() -> {
-                    loadingProgress.setVisibility(View.GONE);
-                    statusText.setText("Library import failed: " + e.getMessage());
-                    statusText.setVisibility(View.VISIBLE);
-                    Toast.makeText(this, "Library import failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                });
-            }
-        }, "game-library-picker-import").start();
-    }
-
-    private void refreshLibrary() {
-        if (libraryPath == null || libraryPath.isEmpty()) {
-            Toast.makeText(this, R.string.library_not_set, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        File root = new File(libraryPath);
-        if (!root.isDirectory()) {
-            Toast.makeText(this, R.string.library_not_set, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        Toast.makeText(this, "Refreshing library", Toast.LENGTH_SHORT).show();
-        processLibraryDownloadsAsync(root);
-        loadGames(root);
     }
     
     private boolean autoExtractRoms(File libraryFolder) {

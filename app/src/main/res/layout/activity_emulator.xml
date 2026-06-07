@@ -57,7 +57,7 @@
         android:src="@android:drawable/ic_media_pause"
         app:tint="#FFFFFF" />
 
-    <ImageButton
+    <Button
         android:id="@+id/controller_map_button"
         android:layout_width="56dp"
         android:layout_height="56dp"
@@ -65,11 +65,23 @@
         android:layout_marginBottom="16dp"
         android:layout_marginEnd="16dp"
         android:background="#66000000"
+        android:text="🎮"
+        android:textSize="24sp"
         android:contentDescription="@string/controller_map"
-        android:elevation="4dp"
-        android:padding="12dp"
-        android:src="@android:drawable/ic_menu_manage"
-        app:tint="#FFFFFF" />
+        android:elevation="4dp" />
+
+    <Button
+        android:id="@+id/crt_toggle_button"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="144dp"
+        android:background="#66000000"
+        android:text="📺"
+        android:textSize="24sp"
+        android:contentDescription="Toggle CRT Filter"
+        android:elevation="4dp" />
 
     <ImageButton
         android:id="@+id/screenshot_button"

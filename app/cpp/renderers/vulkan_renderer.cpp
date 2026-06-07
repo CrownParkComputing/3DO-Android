@@ -12,6 +12,8 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
+#include <dlfcn.h>
+
 namespace {
 
 // SPIR-V for the Vulkan renderer. Sourced from app/cpp/renderers/shaders/*.vert
@@ -24,12 +26,15 @@ extern "C" const uint32_t frag_spv[];
 extern "C" const size_t   frag_spv_size;
 
 // Per-draw push constant layout. Must match the GLSL declaration in
-// vulkan.vert (`layout(push_constant) uniform PushConstants { uint flags; uint rotation; }`).
+// vulkan.vert.
 struct VulkanPushConstants {
-    uint32_t flags;     // bit 0 = flipX, bit 1 = flipY (applied in texture-local UV space)
-    uint32_t rotation;  // 0=0deg, 1=90deg, 2=180deg, 3=270deg
+    uint32_t flags;       // bit 0=flipX, bit 1=flipY, bit 2=crtEnabled, bit 3=aaEnabled
+    uint32_t rotation;    // 0=0deg, 1=90deg, 2=180deg, 3=270deg
+    float    crtStrength; // 0.0 to 1.0
+    float    texelWidth;  // 1.0 / textureWidth
+    float    texelHeight; // 1.0 / textureHeight
 };
-static_assert(sizeof(VulkanPushConstants) == 8, "VulkanPushConstants must be 8 bytes");
+static_assert(sizeof(VulkanPushConstants) == 20, "VulkanPushConstants must be 20 bytes");
 
 }
 
@@ -55,9 +60,19 @@ bool VulkanRenderer::initialize(ANativeWindow* window, int width, int height) {
     }
 
     m_initialized = true;
-    m_rendererName = "Vulkan";
-    LOGI("Vulkan renderer initialized: swapchain=%ux%u texture=%s",
-         m_swapchainExtent.width, m_swapchainExtent.height, m_textureRgb565 ? "RGB565" : "RGBA8888");
+
+    VkPhysicalDeviceProperties props;
+    vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
+    char nameBuf[256];
+    std::snprintf(nameBuf, sizeof(nameBuf), "Vulkan: %s (Driver %u.%u.%u)",
+                 props.deviceName,
+                 VK_VERSION_MAJOR(props.driverVersion),
+                 VK_VERSION_MINOR(props.driverVersion),
+                 VK_VERSION_PATCH(props.driverVersion));
+    m_rendererName = nameBuf;
+
+    LOGI("Vulkan renderer initialized: %s swapchain=%ux%u texture=%s",
+         m_rendererName.c_str(), m_swapchainExtent.width, m_swapchainExtent.height, m_textureRgb565 ? "RGB565" : "RGBA8888");
     return true;
 }
 
@@ -126,6 +141,27 @@ void VulkanRenderer::cleanupSwapchain() {
 }
 
 bool VulkanRenderer::createInstance() {
+    void* handle = nullptr;
+    auto createInstanceFn = vkCreateInstance;
+
+    if (!m_driverPath.empty()) {
+        handle = dlopen(m_driverPath.c_str(), RTLD_NOW | RTLD_LOCAL);
+        if (handle) {
+            LOGI("Loaded custom Vulkan driver: %s", m_driverPath.c_str());
+            auto getProcAddr = (PFN_vkGetInstanceProcAddr)dlsym(handle, "vk_icdGetInstanceProcAddr");
+            if (!getProcAddr) getProcAddr = (PFN_vkGetInstanceProcAddr)dlsym(handle, "vkGetInstanceProcAddr");
+
+            if (getProcAddr) {
+                createInstanceFn = (PFN_vkCreateInstance)getProcAddr(nullptr, "vkCreateInstance");
+                LOGI("Obtained vkCreateInstance from custom driver");
+            } else {
+                LOGE("Could not find vkGetInstanceProcAddr in custom driver");
+            }
+        } else {
+            LOGE("Failed to load custom Vulkan driver: %s (error: %s)", m_driverPath.c_str(), dlerror());
+        }
+    }
+
     VkApplicationInfo appInfo{VK_STRUCTURE_TYPE_APPLICATION_INFO};
     appInfo.pApplicationName = "4DO";
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -137,7 +173,7 @@ bool VulkanRenderer::createInstance() {
     createInfo.pApplicationInfo = &appInfo;
     createInfo.enabledExtensionCount = 2;
     createInfo.ppEnabledExtensionNames = extensions;
-    return vkCreateInstance(&createInfo, nullptr, &m_instance) == VK_SUCCESS;
+    return createInstanceFn(&createInfo, nullptr, &m_instance) == VK_SUCCESS;
 }
 
 bool VulkanRenderer::createSurface(ANativeWindow* window) {
@@ -354,7 +390,7 @@ bool VulkanRenderer::createPipeline() {
     blendState.attachmentCount = 1; blendState.pAttachments = &blend;
     VkPipelineLayoutCreateInfo layout{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     layout.setLayoutCount = 1; layout.pSetLayouts = &m_descriptorSetLayout;
-    VkPushConstantRange pushRange{ VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VulkanPushConstants) };
+    VkPushConstantRange pushRange{ VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(VulkanPushConstants) };
     layout.pushConstantRangeCount = 1;
     layout.pPushConstantRanges    = &pushRange;
     if (vkCreatePipelineLayout(m_device, &layout, nullptr, &m_pipelineLayout) != VK_SUCCESS) return false;
@@ -524,11 +560,16 @@ void VulkanRenderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageInde
     vkCmdSetScissor(cmd, 0, 1, &scissor);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
-    VulkanPushConstants push{};
-    push.flags    = (m_flipX ? 1u : 0u) | (m_flipY ? 2u : 0u);
-    push.rotation = static_cast<uint32_t>(m_rotation & 3);
-    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
-                       0, sizeof(push), &push);
+
+    VulkanPushConstants pc{};
+    pc.flags = (m_flipX ? 1u : 0u) | (m_flipY ? 2u : 0u) | (m_crtShaderEnabled ? 4u : 0u);
+    pc.rotation = static_cast<uint32_t>(m_rotation & 3);
+    pc.crtStrength = 0.85f;
+    pc.texelWidth = 1.0f / std::max(1, m_frameWidth);
+    pc.texelHeight = 1.0f / std::max(1, m_frameHeight);
+
+    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, sizeof(pc), &pc);
     vkCmdDraw(cmd, 4, 1, 0, 0);
     vkCmdEndRenderPass(cmd);
     vkEndCommandBuffer(cmd);
@@ -700,4 +741,9 @@ void VulkanRenderer::setRotation(int degrees) {
     LOGI("Vulkan rotation set to %d deg (slot %d)", degrees, r);
     // No recreateSwapchain() — the rotation is applied entirely in the vertex
     // shader via the push constant in recordCommandBuffer().
+}
+
+void VulkanRenderer::setVulkanDriverPath(const char* path) {
+    if (path) m_driverPath = path;
+    else m_driverPath.clear();
 }

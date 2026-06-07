@@ -24,6 +24,7 @@
 #include "renderers/renderer_interface.h"
 #include "renderers/software_renderer.h"
 #include "renderers/vulkan_renderer.h"
+#include "renderers/gl_renderer.h"
 
 #define LOG_TAG "4DO-Renderer"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
@@ -47,6 +48,7 @@ static int             g_aa_mode         = 0;
 static int             g_output_preset_height = 0;
 static bool            g_flip_vertical   = false;
 static bool            g_flip_x = false;
+static std::string     g_vulkan_driver_path;
 // Historically the renderer expected the texture origin to be top-left;
 // keep vertical flip enabled by default to preserve existing output orientation.
 static bool            g_flip_y = true;
@@ -111,6 +113,8 @@ static IRenderer* create_renderer(RendererType type) {
     switch (type) {
         case RendererType::VULKAN:
             return new VulkanRenderer();
+        case RendererType::OPENGL_ES:
+            return new GLRenderer();
         case RendererType::AUTO:
         default:
             return new VulkanRenderer();
@@ -131,21 +135,25 @@ static void reinit_renderer() {
         g_renderer = nullptr;
     }
 
-    std::array<RendererType, 2> candidates = {RendererType::VULKAN, RendererType::SOFTWARE};
+    std::array<RendererType, 3> candidates = {RendererType::VULKAN, RendererType::OPENGL_ES, RendererType::SOFTWARE};
     size_t candidateCount = 0;
     switch (g_renderer_type) {
         case RendererType::VULKAN:
-            candidates = {RendererType::VULKAN, RendererType::SOFTWARE};
-            candidateCount = 2;
+            candidates = {RendererType::VULKAN, RendererType::OPENGL_ES, RendererType::SOFTWARE};
+            candidateCount = 3;
+            break;
+        case RendererType::OPENGL_ES:
+            candidates = {RendererType::OPENGL_ES, RendererType::VULKAN, RendererType::SOFTWARE};
+            candidateCount = 3;
             break;
         case RendererType::SOFTWARE:
-            candidates = {RendererType::SOFTWARE, RendererType::SOFTWARE};
+            candidates = {RendererType::SOFTWARE, RendererType::SOFTWARE, RendererType::SOFTWARE};
             candidateCount = 1;
             break;
         case RendererType::AUTO:
         default:
-            candidates = {RendererType::VULKAN, RendererType::SOFTWARE};
-            candidateCount = 2;
+            candidates = {RendererType::VULKAN, RendererType::OPENGL_ES, RendererType::SOFTWARE};
+            candidateCount = 3;
             break;
     }
 
@@ -163,6 +171,7 @@ static void reinit_renderer() {
         candidate->setOutputResolutionPreset(g_output_preset_height);
         candidate->setFlip(g_flip_x, g_flip_y);
         candidate->setRotation(g_rotation);
+        candidate->setVulkanDriverPath(g_vulkan_driver_path.c_str());
 
         if (candidate->initialize(g_native_window, g_window_width, g_window_height)) {
             g_renderer = candidate;
@@ -296,6 +305,20 @@ Java_com_fourdo_android_EmulatorActivity_setRendererType(JNIEnv* /*env*/, jobjec
     if (g_native_window) {
         reinit_renderer(); // switch live
     }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_fourdo_android_EmulatorActivity_setVulkanDriverPath(JNIEnv* env, jobject /*thiz*/,
+                                                              jstring path) {
+    std::lock_guard<std::mutex> lock(g_render_mutex);
+    if (path == nullptr) {
+        g_vulkan_driver_path.clear();
+    } else {
+        const char* c_path = env->GetStringUTFChars(path, nullptr);
+        g_vulkan_driver_path = c_path;
+        env->ReleaseStringUTFChars(path, c_path);
+    }
+    LOGD("setVulkanDriverPath: %s", g_vulkan_driver_path.c_str());
 }
 
 // -----------------------------------------------------------------------

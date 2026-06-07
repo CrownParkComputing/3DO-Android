@@ -45,8 +45,9 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private ImageButton pauseButton;
-    private ImageButton controllerMapButton;
+    private Button controllerMapButton;
     private ImageButton screenshotButton;
+    private Button crtToggleButton;
     
     // Quick toolbar buttons
     private android.widget.ProgressBar loadingOverlaySpinner;
@@ -126,6 +127,7 @@ public class EmulatorActivity extends AppCompatActivity {
         pauseButton = findViewById(R.id.pause_button);
         controllerMapButton = findViewById(R.id.controller_map_button);
         screenshotButton = findViewById(R.id.screenshot_button);
+        crtToggleButton = findViewById(R.id.crt_toggle_button);
         emulatorBezel = findViewById(R.id.emulator_bezel);
         loadingOverlay = findViewById(R.id.loading_overlay);
         loadingText = findViewById(R.id.loading_text);
@@ -170,6 +172,20 @@ public class EmulatorActivity extends AppCompatActivity {
                 saveScreenshot();
             }
         });
+
+        if (crtToggleButton != null) {
+            crtToggleButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    crtShaderEnabled = !crtShaderEnabled;
+                    setCrtShaderEnabled(crtShaderEnabled);
+                    saveSettings();
+                    updateButtonLabels();
+                    updateStatusIndicator();
+                    Toast.makeText(EmulatorActivity.this, "CRT Filter: " + (crtShaderEnabled ? "ON" : "OFF"), Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
     }
 
     /**
@@ -275,6 +291,10 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private void applyRendererDefaults(int width, int height, Surface surface) {
+        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        String driverPath = prefs.getString(SettingsActivity.KEY_VULKAN_DRIVER_PATH, "");
+        setVulkanDriverPath(driverPath);
+
         setRendererType(currentRenderer);
         setFiltering(nearestFiltering);
         setAspectRatio(aspectRatio16by9);
@@ -485,9 +505,13 @@ public class EmulatorActivity extends AppCompatActivity {
         rendererLabel.setText("Renderer");
         root.addView(rendererLabel);
         Spinner rendererSpinner = new Spinner(this);
-        String[] rendererOptions = {"Vulkan", "Software"};
+        String[] rendererOptions = {"Vulkan", "OpenGL ES", "Software"};
         rendererSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, rendererOptions));
-        rendererSpinner.setSelection(currentRenderer == RENDERER_SOFTWARE ? 1 : 0);
+        
+        int selection = 0;
+        if (currentRenderer == RENDERER_OPENGL_ES) selection = 1;
+        else if (currentRenderer == RENDERER_SOFTWARE) selection = 2;
+        rendererSpinner.setSelection(selection);
         root.addView(rendererSpinner);
 
         TextView aspectLabel = new TextView(this);
@@ -541,7 +565,10 @@ public class EmulatorActivity extends AppCompatActivity {
         rendererSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                int selectedRenderer = position == 1 ? RENDERER_SOFTWARE : RENDERER_VULKAN;
+                int selectedRenderer = RENDERER_VULKAN;
+                if (position == 1) selectedRenderer = RENDERER_OPENGL_ES;
+                else if (position == 2) selectedRenderer = RENDERER_SOFTWARE;
+
                 if (!ready[0] || currentRenderer == selectedRenderer) return;
                 currentRenderer = selectedRenderer;
                 if (!isHardwareRendererSelected()) {
@@ -747,6 +774,9 @@ public class EmulatorActivity extends AppCompatActivity {
         if (rendererType == RENDERER_VULKAN) {
             return "Vulkan";
         }
+        if (rendererType == RENDERER_OPENGL_ES) {
+            return "GL";
+        }
         if (rendererType == RENDERER_SOFTWARE) {
             return "Soft";
         }
@@ -754,11 +784,8 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private int normalizeRendererType(int rendererType) {
-        if (rendererType == RENDERER_VULKAN) {
-            return RENDERER_VULKAN;
-        }
-        if (rendererType == RENDERER_SOFTWARE) {
-            return RENDERER_SOFTWARE;
+        if (rendererType == RENDERER_VULKAN || rendererType == RENDERER_OPENGL_ES || rendererType == RENDERER_SOFTWARE) {
+            return rendererType;
         }
         return RENDERER_VULKAN;
     }
@@ -863,6 +890,9 @@ public class EmulatorActivity extends AppCompatActivity {
         // Update CRT and scale buttons
         if (crtButton != null) {
             crtButton.setText(crtShaderEnabled ? "📺" : "⬜");
+        }
+        if (crtToggleButton != null) {
+            crtToggleButton.setBackgroundColor(crtShaderEnabled ? 0xAA4488FF : 0x66000000);
         }
         if (scaleButton != null) {
             scaleButton.setText(getEffectiveResolutionLabel());
@@ -1225,8 +1255,18 @@ public class EmulatorActivity extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
         debugModeEnabled = prefs.getBoolean(SettingsActivity.KEY_DEBUG_OVERLAY_ENABLED, false);
         bezelEnabled = prefs.getBoolean(SettingsActivity.KEY_BEZEL_ENABLED, true);
+        crtShaderEnabled = prefs.getBoolean("crt_shader_enabled", false);
+        nearestFiltering = prefs.getBoolean("nearest_filtering", false);
+        
         applyDebugModeUi();
         applyBezelVisibility();
+        
+        // Update renderer if it's already initialized
+        setFiltering(nearestFiltering);
+        setCrtShaderEnabled(crtShaderEnabled);
+        updateButtonLabels();
+        updateStatusIndicator();
+
         if (emulatorStarted && !emulatorInitializing && !manuallyPaused) {
             resumeEmulator();
         }
@@ -1293,6 +1333,7 @@ public class EmulatorActivity extends AppCompatActivity {
 
     // New GPU renderer methods
     private native void setRendererType(int type);
+    private native void setVulkanDriverPath(String path);
     private native void setFiltering(boolean nearest);
     private native String getRendererName();
     private native void setAspectRatio(boolean wide);
@@ -1325,6 +1366,7 @@ public class EmulatorActivity extends AppCompatActivity {
     
     // Renderer type constants
     public static final int RENDERER_AUTO = 0;
+    public static final int RENDERER_OPENGL_ES = 1;
     public static final int RENDERER_VULKAN = 2;
     public static final int RENDERER_SOFTWARE = 3;
 

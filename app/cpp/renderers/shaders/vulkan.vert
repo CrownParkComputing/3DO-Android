@@ -5,8 +5,11 @@
 // vulkan_renderer.cpp).
 
 layout(push_constant) uniform PushConstants {
-    uint flags;      // bit 0 = flipX, bit 1 = flipY (applied in texture-local UV space)
-    uint rotation;   // 0 = 0 deg, 1 = 90 CW, 2 = 180, 3 = 270 CW
+    uint flags;      // bit 0=flipX, bit 1=flipY, bit 2=crtEnabled, bit 3=aaEnabled
+    uint rotation;   // 0=0 deg, 1=90 CW, 2=180, 3=270 CW
+    float crtStrength;
+    float texelWidth;
+    float texelHeight;
 } pc;
 
 layout(location = 0) out vec2 vTexCoord;

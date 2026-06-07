@@ -36,207 +36,267 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="horizontal"
+            android:baselineAligned="false">
 
-            <!-- BIOS Section -->
-            <TextView
-                android:layout_width="wrap_content"
+            <!-- Left Column -->
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="BIOS Configuration"
-                android:textColor="#4488FF"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="8dp" />
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingEnd="8dp"
+                android:paddingStart="0dp">
 
-            <TextView
-                android:id="@+id/bios_path_text"
-                android:layout_width="match_parent"
+                <!-- BIOS Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="BIOS Configuration"
+                    android:textColor="#4488FF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/bios_path_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="@string/bios_not_set"
+                    android:textColor="#AAAAAA"
+                    android:padding="12dp"
+                    android:background="#252547"
+                    android:layout_marginBottom="8dp" />
+
+                <Button
+                    android:id="@+id/select_bios_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/select_bios"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#4488FF"
+                    android:layout_marginBottom="24dp" />
+
+                <!-- Library Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Game Library"
+                    android:textColor="#4488FF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/library_path_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="@string/library_not_set"
+                    android:textColor="#AAAAAA"
+                    android:padding="12dp"
+                    android:background="#252547"
+                    android:layout_marginBottom="8dp" />
+
+                <Button
+                    android:id="@+id/select_library_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/select_library"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#4488FF"
+                    android:layout_marginBottom="24dp" />
+
+                <!-- Vulkan Driver Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/vulkan_driver"
+                    android:textColor="#4488FF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/vulkan_driver_path_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="@string/vulkan_driver_system"
+                    android:textColor="#AAAAAA"
+                    android:padding="12dp"
+                    android:background="#252547"
+                    android:layout_marginBottom="8dp" />
+
+                <Button
+                    android:id="@+id/select_vulkan_driver_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/vulkan_driver_select"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#4488FF"
+                    android:layout_marginBottom="8dp" />
+
+                <Button
+                    android:id="@+id/reset_vulkan_driver_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/vulkan_driver_reset"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#666666"
+                    android:layout_marginBottom="24dp" />
+
+            </LinearLayout>
+
+            <!-- Right Column -->
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:gravity="center"
-                android:text="@string/bios_not_set"
-                android:textColor="#AAAAAA"
-                android:padding="12dp"
-                android:background="#252547"
-                android:layout_marginBottom="8dp" />
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="0dp">
 
-            <Button
-                android:id="@+id/select_bios_button"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/select_bios"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#4488FF"
-                android:layout_marginBottom="24dp" />
+                <!-- Display Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Display &amp; Emulation"
+                    android:textColor="#4488FF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
 
-            <!-- Library Section -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Game Library"
-                android:textColor="#4488FF"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="8dp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Renderer"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginBottom="4dp" />
 
-            <TextView
-                android:id="@+id/library_path_text"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:text="@string/library_not_set"
-                android:textColor="#AAAAAA"
-                android:padding="12dp"
-                android:background="#252547"
-                android:layout_marginBottom="8dp" />
+                <Spinner
+                    android:id="@+id/renderer_spinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#252547"
+                    android:padding="8dp"
+                    android:layout_marginBottom="12dp" />
 
-            <Button
-                android:id="@+id/select_library_button"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/select_library"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#4488FF"
-                android:layout_marginBottom="24dp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Texture Filtering"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginBottom="4dp" />
 
-            <!-- Controller Section -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Controllers"
-                android:textColor="#4488FF"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="8dp" />
+                <Spinner
+                    android:id="@+id/filtering_spinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#252547"
+                    android:padding="8dp"
+                    android:layout_marginBottom="12dp" />
 
-            <Button
-                android:id="@+id/controller_mapper_button"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Configure Controller Mapping"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#666666"
-                android:layout_marginBottom="24dp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Console Region"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginBottom="4dp" />
 
-            <!-- Display Section -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Display"
-                android:textColor="#4488FF"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="8dp" />
+                <Spinner
+                    android:id="@+id/region_spinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#252547"
+                    android:padding="8dp"
+                    android:layout_marginBottom="12dp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Renderer"
-                android:textColor="#FFFFFF"
-                android:layout_marginBottom="4dp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Library View Style"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginBottom="4dp" />
 
-            <Spinner
-                android:id="@+id/renderer_spinner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#252547"
-                android:padding="8dp"
-                android:layout_marginBottom="12dp" />
+                <Spinner
+                    android:id="@+id/view_style_spinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#252547"
+                    android:padding="8dp"
+                    android:layout_marginBottom="12dp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Texture Filtering"
-                android:textColor="#FFFFFF"
-                android:layout_marginBottom="4dp" />
+                <Switch
+                    android:id="@+id/bezel_switch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:text="Enable Bezel"
+                    android:textColor="#FFFFFF"
+                    android:thumbTint="#4488FF"
+                    android:trackTint="#252547" />
 
-            <Spinner
-                android:id="@+id/filtering_spinner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#252547"
-                android:padding="8dp"
-                android:layout_marginBottom="12dp" />
+                <Switch
+                    android:id="@+id/debug_overlay_switch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="24dp"
+                    android:text="Debug Overlay"
+                    android:textColor="#FFFFFF"
+                    android:thumbTint="#4488FF"
+                    android:trackTint="#252547" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Console Region"
-                android:textColor="#FFFFFF"
-                android:layout_marginBottom="4dp" />
+                <!-- Controller Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Input"
+                    android:textColor="#4488FF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
 
-            <Spinner
-                android:id="@+id/region_spinner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#252547"
-                android:padding="8dp"
-                android:layout_marginBottom="12dp" />
+                <Button
+                    android:id="@+id/controller_mapper_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Configure Controller"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#666666"
+                    android:layout_marginBottom="24dp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Library View Style"
-                android:textColor="#FFFFFF"
-                android:layout_marginBottom="4dp" />
+                <!-- Data Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Maintenance"
+                    android:textColor="#4488FF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
 
-            <Spinner
-                android:id="@+id/view_style_spinner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#252547"
-                android:padding="8dp"
-                android:layout_marginBottom="12dp" />
+                <Button
+                    android:id="@+id/clear_cache_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Clear Cache"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#AA4444"
+                    android:layout_marginBottom="8dp" />
 
-            <Switch
-                android:id="@+id/bezel_switch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:text="Enable Emulator Bezel"
-                android:textColor="#FFFFFF"
-                android:thumbTint="#4488FF"
-                android:trackTint="#252547" />
+                <Button
+                    android:id="@+id/view_logs_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="View Logs"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#666666"
+                    android:layout_marginBottom="24dp" />
 
-            <Switch
-                android:id="@+id/debug_overlay_switch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                android:text="Enable Debug Overlay In Emulator"
-                android:textColor="#FFFFFF"
-                android:thumbTint="#4488FF"
-                android:trackTint="#252547" />
-
-            <!-- Data Section -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Data"
-                android:textColor="#4488FF"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="8dp" />
-
-            <Button
-                android:id="@+id/clear_cache_button"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Clear IGDB Cache"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#AA4444"
-                android:layout_marginBottom="8dp" />
-
-            <Button
-                android:id="@+id/view_logs_button"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="View Logs"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#666666"
-                android:layout_marginBottom="24dp" />
-
+            </LinearLayout>
         </LinearLayout>
-
     </ScrollView>
 
     <!-- Bottom Button -->

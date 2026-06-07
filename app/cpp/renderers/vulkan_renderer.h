@@ -32,6 +32,7 @@ public:
     void setFlipVertical(bool enabled) override;
     void setFlip(bool flipX, bool flipY) override;
     void setRotation(int degrees) override;
+    void setVulkanDriverPath(const char* path) override;
     const char* getName() const override { return m_rendererName.c_str(); }
     bool isInitialized() const override { return m_initialized; }
     int getWindowWidth() const override { return m_windowWidth; }
@@ -86,6 +87,7 @@ private:
     bool m_flipX = false;
     bool m_flipY = false;
     int  m_rotation = 0; // 0=0deg, 1=90deg, 2=180deg, 3=270deg
+    std::string m_driverPath;
     bool m_initialized = false;
     std::string m_rendererName = "Vulkan";
 

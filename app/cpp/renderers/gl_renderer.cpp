@@ -27,7 +27,7 @@ static const char* VERTEX_SHADER = R"(
     }
 )";
 
-// Fragment shader - texture sampling with RGB565 support
+// Fragment shader - high quality CRT and sampling
 static const char* FRAGMENT_SHADER = R"(
     #version 300 es
     precision mediump float;
@@ -40,6 +40,29 @@ static const char* FRAGMENT_SHADER = R"(
     uniform int uAaMode;
     out vec4 fragColor;
 
+    // Simple CRT-Lottes inspired effect
+    vec3 crt_filter(vec2 uv, vec3 color) {
+        // Simple scanlines
+        float pos = uv.y / uTexelSize.y;
+        float scanline = 0.5 + 0.5 * sin(pos * 6.283185 * 1.0); // 1.0 scanlines per texel
+        scanline = mix(1.0, scanline, 0.4 * uCrtStrength);
+
+        // Phosphor mask (RGB triad)
+        float mask_pos = uv.x / uTexelSize.x * 3.0;
+        vec3 mask = vec3(1.0);
+        float m = fract(mask_pos);
+        if (m < 0.33) mask = vec3(1.0, 0.6, 0.6);
+        else if (m < 0.66) mask = vec3(0.6, 1.0, 0.6);
+        else mask = vec3(0.6, 0.6, 1.0);
+        mask = mix(vec3(1.0), mask, 0.3 * uCrtStrength);
+
+        // Vignette
+        vec2 dist = abs(uv - 0.5);
+        float vignette = clamp(1.0 - dot(dist, dist) * 1.5, 0.0, 1.0);
+
+        return color * scanline * mask * vignette;
+    }
+
     vec4 sampleFxaa(vec2 uv, float amount) {
         vec2 offset = uTexelSize * amount;
         vec4 c = texture(uTexture, uv);
@@ -47,24 +70,19 @@ static const char* FRAGMENT_SHADER = R"(
         vec4 s = texture(uTexture, uv + vec2(0.0, offset.y));
         vec4 e = texture(uTexture, uv + vec2(offset.x, 0.0));
         vec4 w = texture(uTexture, uv + vec2(-offset.x, 0.0));
-        vec4 ne = texture(uTexture, uv + vec2(offset.x, -offset.y));
-        vec4 nw = texture(uTexture, uv + vec2(-offset.x, -offset.y));
-        vec4 se = texture(uTexture, uv + vec2(offset.x, offset.y));
-        vec4 sw = texture(uTexture, uv + vec2(-offset.x, offset.y));
-        vec4 avg = (n + s + e + w + ne + nw + se + sw) / 8.0;
-        float edge = length((n.rgb + s.rgb + e.rgb + w.rgb) - (4.0 * c.rgb));
-        float edgeFactor = clamp(edge * 2.5, 0.0, 1.0);
-        return mix(c, avg, edgeFactor * 0.6);
+        vec4 avg = (n + s + e + w) / 4.0;
+        float edge = length(c.rgb - avg.rgb);
+        float edgeFactor = clamp(edge * 4.0, 0.0, 1.0);
+        return mix(c, avg, edgeFactor * 0.5);
     }
 
     void main() {
-        vec4 center = texture(uTexture, vTexCoord);
-        vec4 baseColor = center;
-
+        vec4 baseColor;
         if (uAaMode > 0) {
             float amount = (uAaMode == 1) ? 0.75 : 1.25;
             baseColor = sampleFxaa(vTexCoord, amount);
-            center = baseColor;
+        } else {
+            baseColor = texture(uTexture, vTexCoord);
         }
 
         if (uSharpenStrength > 0.0001) {
@@ -72,17 +90,12 @@ static const char* FRAGMENT_SHADER = R"(
             vec4 south = texture(uTexture, vTexCoord + vec2(0.0,  uTexelSize.y));
             vec4 west  = texture(uTexture, vTexCoord + vec2(-uTexelSize.x, 0.0));
             vec4 east  = texture(uTexture, vTexCoord + vec2( uTexelSize.x, 0.0));
-            vec4 laplace = (center * 4.0) - (north + south + west + east);
-            baseColor = clamp(center + (uSharpenStrength * laplace), 0.0, 1.0);
+            vec4 laplace = (baseColor * 4.0) - (north + south + west + east);
+            baseColor.rgb = clamp(baseColor.rgb + (uSharpenStrength * laplace.rgb), 0.0, 1.0);
         }
 
         if (uCrtEnabled != 0) {
-            float scan = 0.88 + 0.12 * sin(vTexCoord.y / max(uTexelSize.y, 0.000001) * 3.14159265);
-            float mask = 0.92 + 0.08 * sin(vTexCoord.x / max(uTexelSize.x, 0.000001) * 1.57079632);
-            vec2 dist = abs(vTexCoord - vec2(0.5));
-            float vignette = clamp(1.0 - dot(dist, dist) * 1.2, 0.0, 1.0);
-            float crtFactor = mix(1.0, scan * mask * vignette, clamp(uCrtStrength, 0.0, 1.0));
-            fragColor = vec4(baseColor.rgb * crtFactor, baseColor.a);
+            fragColor = vec4(crt_filter(vTexCoord, baseColor.rgb), baseColor.a);
         } else {
             fragColor = baseColor;
         }
@@ -154,15 +167,13 @@ bool GLRenderer::initialize(ANativeWindow* window, int width, int height) {
     
     m_initialized = true;
     const char* glRenderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
-    if (glRenderer != nullptr) {
-        m_rendererName = std::string("OpenGL ES (") + glRenderer + ")";
+    const char* glVersion = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    if (glRenderer != nullptr && glVersion != nullptr) {
+        m_rendererName = std::string("GLES: ") + glRenderer + " (" + glVersion + ")";
     } else {
         m_rendererName = "OpenGL ES";
     }
-    LOGI("OpenGL ES renderer initialized successfully");
-    LOGI("  GL Version: %s", glGetString(GL_VERSION));
-    LOGI("  GL Renderer: %s", glGetString(GL_RENDERER));
-    LOGI("  GL Vendor: %s", glGetString(GL_VENDOR));
+    LOGI("OpenGL ES renderer initialized successfully: %s", m_rendererName.c_str());
     
     // Release the context so the emulator thread can use it
     eglMakeCurrent(m_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);

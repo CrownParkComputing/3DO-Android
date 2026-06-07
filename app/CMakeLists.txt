@@ -22,6 +22,17 @@ find_library(
     vulkan
 )
 
+# Find EGL and OpenGL ES libraries
+find_library(
+    egl-lib
+    EGL
+)
+
+find_library(
+    gles-lib
+    GLESv3
+)
+
 # Find zlib for CHD support
 find_library(
     zlib-lib
@@ -173,6 +184,7 @@ add_library(
     # Renderer files
     cpp/renderers/software_renderer.cpp
     cpp/renderers/vulkan_renderer.cpp
+    cpp/renderers/gl_renderer.cpp
     cpp/renderers/shaders/vulkan_shaders.gen.cpp
 
     # Native hardware-emulation backend (ported from legacy opera modules)
@@ -227,6 +239,8 @@ target_link_libraries(
     ${log-lib}
     ${android-lib}
     ${vulkan-lib}
+    ${egl-lib}
+    ${gles-lib}
     chdr
     wavpack
     ${zlib-lib}
