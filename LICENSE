@@ -1,4 +1,20 @@
-MIT License
+This project is a combination of components licensed under different terms:
+
+1. The core emulator logic (native code in app/cpp/native_core) is derived from Opera and 4DO, which are based on FreeDO. This code is licensed under the GNU Lesser General Public License version 2.1 (LGPL v2.1).
+
+2. The Android-specific frontend, UI code, and renderer implementations (unless otherwise specified) are licensed under the MIT License.
+
+---
+
+### LGPL v2.1 License (Core Emulator Logic)
+
+The core code is subject to the terms of the GNU Lesser General Public License as published by the Free Software Foundation; either version 2.1 of the License, or (at your option) any later version.
+
+A copy of the LGPL v2.1 can be found at: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html
+
+---
+
+### MIT License (Android Frontend & UI)
 
 Copyright (c) 2024 CrownParkComputing
 

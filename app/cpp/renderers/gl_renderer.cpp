@@ -77,25 +77,38 @@ static const char* FRAGMENT_SHADER = R"(
     }
 
     void main() {
+        vec2 uv = vTexCoord;
+        if (uCrtEnabled != 0) {
+            vec2 centered_uv = uv * 2.0 - 1.0;
+            vec2 distortion = vec2(0.04, 0.06); // Curvature strength
+            centered_uv += centered_uv * (centered_uv.yx * centered_uv.yx) * distortion;
+            uv = centered_uv * 0.5 + 0.5;
+
+            if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+                fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                return;
+            }
+        }
+
         vec4 baseColor;
         if (uAaMode > 0) {
             float amount = (uAaMode == 1) ? 0.75 : 1.25;
-            baseColor = sampleFxaa(vTexCoord, amount);
+            baseColor = sampleFxaa(uv, amount);
         } else {
-            baseColor = texture(uTexture, vTexCoord);
+            baseColor = texture(uTexture, uv);
         }
 
         if (uSharpenStrength > 0.0001) {
-            vec4 north = texture(uTexture, vTexCoord + vec2(0.0, -uTexelSize.y));
-            vec4 south = texture(uTexture, vTexCoord + vec2(0.0,  uTexelSize.y));
-            vec4 west  = texture(uTexture, vTexCoord + vec2(-uTexelSize.x, 0.0));
-            vec4 east  = texture(uTexture, vTexCoord + vec2( uTexelSize.x, 0.0));
+            vec4 north = texture(uTexture, uv + vec2(0.0, -uTexelSize.y));
+            vec4 south = texture(uTexture, uv + vec2(0.0,  uTexelSize.y));
+            vec4 west  = texture(uTexture, uv + vec2(-uTexelSize.x, 0.0));
+            vec4 east  = texture(uTexture, uv + vec2( uTexelSize.x, 0.0));
             vec4 laplace = (baseColor * 4.0) - (north + south + west + east);
             baseColor.rgb = clamp(baseColor.rgb + (uSharpenStrength * laplace.rgb), 0.0, 1.0);
         }
 
         if (uCrtEnabled != 0) {
-            fragColor = vec4(crt_filter(vTexCoord, baseColor.rgb), baseColor.a);
+            fragColor = vec4(crt_filter(uv, baseColor.rgb), baseColor.a);
         } else {
             fragColor = baseColor;
         }

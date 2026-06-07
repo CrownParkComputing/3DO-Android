@@ -45,7 +45,6 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private ImageButton pauseButton;
-    private Button controllerMapButton;
     private ImageButton screenshotButton;
     private Button crtToggleButton;
     
@@ -125,7 +124,6 @@ public class EmulatorActivity extends AppCompatActivity {
 
     private void bindViews() {
         pauseButton = findViewById(R.id.pause_button);
-        controllerMapButton = findViewById(R.id.controller_map_button);
         screenshotButton = findViewById(R.id.screenshot_button);
         crtToggleButton = findViewById(R.id.crt_toggle_button);
         emulatorBezel = findViewById(R.id.emulator_bezel);
@@ -152,13 +150,6 @@ public class EmulatorActivity extends AppCompatActivity {
     }
 
     private void setupActivityButtons() {
-        controllerMapButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                openControllerMap();
-            }
-        });
-
         pauseButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

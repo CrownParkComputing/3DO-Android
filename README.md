@@ -1,12 +1,12 @@
 # 4DO Android
 
 [![Get it on Google Play](https://img.shields.io/badge/Google_Play-Download-414141?logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=com.fourdo.android)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: LGPL v2.1](https://img.shields.io/badge/License-LGPL_v2.1-blue.svg)](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html)
 [![Android](https://img.shields.io/badge/Platform-Android%207.0%2B-green)](https://www.android.com)
 
 <img src="docs/screenshots/icon.png" align="right" width="96" alt="4DO Android icon" />
 
-Android port of 4DO with a Java UI and native emulator/rendering code — a free, open-source emulator for 3DO software with broad Android compatibility across phones, tablets, foldables, and handheld devices.
+Android port of the **Opera** emulator (a fork of 4DO) with a Java UI and native emulator/rendering code — a free, open-source emulator for 3DO software with broad Android compatibility across phones, tablets, foldables, and handheld devices.
 
 ## Download
 
@@ -90,11 +90,13 @@ GitHub Actions build configuration lives in `.github/workflows/android-build.yml
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+The core emulator logic is based on **Opera**, which is a fork of **4DO**, and is licensed under the **LGPL v2.1**. The Android-specific frontend and UI code are provided under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgements
 
-- Original 4DO emulator by [Lionello "Lion" Vella](https://www.tapatalk.com/groups/tapwave)
-- [Opera](https://github.com/libretro/opera-libretro) contributors and community
-- Tapwave Zodiac and broader 3DO preservation community
-- All contributors
+- **FreeDO**: The original 3DO emulator by Alexander64, Maxim Grishin, Andrey Tkachuk, Viktor Sen'ko (johnnydude), and others.
+- **4DO**: Built upon FreeDO by **Viktor "johnnydude" Sen'ko**.
+- **Opera**: An optimized fork of 4DO maintained by the [Opera-Libretro](https://github.com/libretro/opera-libretro) community.
+- **Opera Android**: This project is an Android port/frontend for the Opera core.
+- **Tapwave Zodiac** and broader 3DO preservation community.
+- All contributors.

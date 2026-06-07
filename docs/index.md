@@ -9,7 +9,7 @@ layout: default
 
 # 4DO Emulator for Android
 
-A free, open-source Android emulator for 3DO software built from the 4DO lineage, designed for broad compatibility across modern Android phones, tablets, foldables, and handheld devices.
+A free, open-source Android emulator for 3DO software built from the **Opera** codebase (a fork of 4DO), designed for broad compatibility across modern Android phones, tablets, foldables, and handheld devices.
 
 ## Download
 
@@ -70,14 +70,16 @@ Contributions are welcome! Please see the [CONTRIBUTING.md](https://github.com/C
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](https://github.com/CrownParkComputing/4DO-Android/blob/main/LICENSE) file for details.
+The core emulator logic is based on **Opera** and is licensed under the **LGPL v2.1**. The Android-specific frontend and UI code are provided under the MIT License. See the [LICENSE](https://github.com/CrownParkComputing/4DO-Android/blob/main/LICENSE) for details.
 
 ## Acknowledgements
 
-- Original 4DO emulator by [Lionello "Lion" Vella](https://www.tapatalk.com/groups/tapwave)
-- [Opera](https://github.com/libretro/opera-libretro) contributors and community
-- Tapwave Zodiac and broader 3DO preservation community
-- All contributors
+- **FreeDO**: The original 3DO emulator by Alexander64, Maxim Grishin, Andrey Tkachuk, Viktor Sen'ko (johnnydude), and others.
+- **4DO**: Built upon FreeDO by **Viktor "johnnydude" Sen'ko**.
+- **Opera**: An optimized fork of 4DO maintained by the [Opera-Libretro](https://github.com/libretro/opera-libretro) community.
+- **Opera Android**: This project is an Android port/frontend for the Opera core.
+- **Tapwave Zodiac** and broader 3DO preservation community.
+- All contributors.
 
 ## Links
 

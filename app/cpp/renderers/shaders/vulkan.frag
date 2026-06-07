@@ -16,16 +16,30 @@ layout(push_constant) uniform PushConstants {
 } pc;
 
 void main() {
-    vec3 baseColor = texture(uTexture, vTexCoord).rgb;
+    vec2 uv = vTexCoord;
+    if ((pc.flags & 4u) != 0u) { // CRT enabled
+        // Barrel distortion / Curvature
+        vec2 centered_uv = uv * 2.0 - 1.0;
+        vec2 distortion = vec2(0.04, 0.06); // Curvature strength
+        centered_uv += centered_uv * (centered_uv.yx * centered_uv.yx) * distortion;
+        uv = centered_uv * 0.5 + 0.5;
+
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+            fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+            return;
+        }
+    }
+
+    vec3 baseColor = texture(uTexture, uv).rgb;
 
     if ((pc.flags & 4u) != 0u) { // CRT enabled
         // Simple scanlines
-        float pos = vTexCoord.y / pc.texelHeight;
+        float pos = uv.y / pc.texelHeight;
         float scanline = 0.5 + 0.5 * sin(pos * 6.283185 * 1.0);
         scanline = mix(1.0, scanline, 0.4 * pc.crtStrength);
 
         // Phosphor mask (RGB triad)
-        float mask_pos = vTexCoord.x / pc.texelWidth * 3.0;
+        float mask_pos = uv.x / pc.texelWidth * 3.0;
         vec3 mask = vec3(1.0);
         float m = fract(mask_pos);
         if (m < 0.33) mask = vec3(1.0, 0.6, 0.6);
@@ -34,7 +48,7 @@ void main() {
         mask = mix(vec3(1.0), mask, 0.3 * pc.crtStrength);
 
         // Vignette
-        vec2 dist = abs(vTexCoord - 0.5);
+        vec2 dist = abs(uv - 0.5);
         float vignette = clamp(1.0 - dot(dist, dist) * 1.5, 0.0, 1.0);
 
         fragColor = vec4(baseColor * scanline * mask * vignette, 1.0);
