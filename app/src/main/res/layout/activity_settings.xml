@@ -262,7 +262,7 @@
                     android:id="@+id/controller_mapper_button"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Configure Controller"
+                    android:text="🎮 Configure Controller"
                     android:textColor="#FFFFFF"
                     android:backgroundTint="#666666"
                     android:layout_marginBottom="24dp" />

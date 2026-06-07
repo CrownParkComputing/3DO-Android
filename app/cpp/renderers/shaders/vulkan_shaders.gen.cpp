@@ -2,7 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 
-// vert.spv (3708 bytes, 927 words)
+// vulkan.vert.spv (3708 bytes, 927 words)
 extern "C" const uint32_t vert_spv[] = {
     0x07230203, 0x00010000, 0x0008000b, 0x00000096, 0x00000000, 0x00020011, 0x00000001, 0x0006000b,
     0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e, 0x00000000, 0x0003000e, 0x00000000, 0x00000001,
@@ -123,7 +123,7 @@ extern "C" const uint32_t vert_spv[] = {
 };
 extern "C" const size_t vert_spv_size = sizeof(vert_spv);
 
-// frag.spv (4680 bytes, 1170 words)
+// vulkan.frag.spv (4680 bytes, 1170 words)
 extern "C" const uint32_t frag_spv[] = {
     0x07230203, 0x00010000, 0x0008000b, 0x000000c5, 0x00000000, 0x00020011, 0x00000001, 0x0006000b,
     0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e, 0x00000000, 0x0003000e, 0x00000000, 0x00000001,
