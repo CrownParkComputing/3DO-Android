@@ -53,6 +53,13 @@ jobs:
         KEY_ALIAS: ${{ secrets.KEY_ALIAS || '4do-key' }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
+    - name: Upload AAB Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: 4do-playstore-aab
+        path: app/build/outputs/bundle/release/app-release.aab
+        retention-days: 1
+
     - name: Remove release keystore
       if: always()
       run: rm -f release.keystore
@@ -80,7 +87,7 @@ jobs:
         status: completed
 
   # Keep the Actions tab tidy: retain only the 5 most recent runs of this
-  # workflow and delete every build artifact (the AAB lives on Play, not here).
+  # workflow.
   cleanup:
     needs: playstore-aab
     if: always()
@@ -88,22 +95,13 @@ jobs:
     permissions:
       actions: write
     steps:
-    - name: Prune runs (keep last 5) and delete all artifacts
+    - name: Prune runs (keep last 5)
       uses: actions/github-script@v7
       with:
         script: |
           const { owner, repo } = context.repo;
 
-          // 1. Delete ALL artifacts across the repo.
-          const artifacts = await github.paginate(
-            github.rest.actions.listArtifactsForRepo, { owner, repo, per_page: 100 });
-          core.info(`Deleting ${artifacts.length} artifact(s).`);
-          for (const a of artifacts) {
-            await github.rest.actions.deleteArtifact({ owner, repo, artifact_id: a.id })
-              .catch(e => core.warning(`artifact ${a.id}: ${e.message}`));
-          }
-
-          // 2. Keep only the 5 newest runs of THIS workflow; delete the rest.
+          // 1. Keep only the 5 newest runs of THIS workflow; delete the rest.
           const { data: thisRun } = await github.rest.actions.getWorkflowRun({
             owner, repo, run_id: context.runId });
           const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {

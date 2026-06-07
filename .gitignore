@@ -46,3 +46,6 @@ app-release*.zip
 check_zip.ps1
 git-lsremote.*.txt
 .vscode/
+media/
+*.zip
+*.zip.part_*

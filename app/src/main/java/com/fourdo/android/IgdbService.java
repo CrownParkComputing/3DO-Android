@@ -97,21 +97,23 @@ public class IgdbService {
                 if (cacheFile.exists()) {
                     FileInputStream fis = new FileInputStream(cacheFile);
                     byte[] data = new byte[(int) cacheFile.length()];
-                    fis.read(data);
+                    int bytesRead = fis.read(data);
                     fis.close();
                     
-                    String json = new String(data, StandardCharsets.UTF_8);
-                    JSONObject root = new JSONObject(json);
-                    JSONArray arr = root.getJSONArray("games");
-                    
-                    for (int i = 0; i < arr.length(); i++) {
-                        JSONObject item = arr.getJSONObject(i);
-                        IgdbGame game = parseGameFromJson(item);
-                        String key = game.name.toLowerCase().trim();
-                        gameCache.put(key, game);
+                    if (bytesRead > 0) {
+                        String json = new String(data, StandardCharsets.UTF_8);
+                        JSONObject root = new JSONObject(json);
+                        JSONArray arr = root.getJSONArray("games");
+                        
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject item = arr.getJSONObject(i);
+                            IgdbGame game = parseGameFromJson(item);
+                            String key = game.name.toLowerCase().trim();
+                            gameCache.put(key, game);
+                        }
+                        
+                        Log.d(TAG, "Loaded " + gameCache.size() + " games from cache");
                     }
-                    
-                    Log.d(TAG, "Loaded " + gameCache.size() + " games from cache");
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Failed to load game cache: " + e.getMessage());
@@ -530,8 +532,11 @@ public class IgdbService {
             // Delete cover cache files
             File coverDir = new File(context.getCacheDir(), "covers");
             if (coverDir.exists() && coverDir.isDirectory()) {
-                for (File f : coverDir.listFiles()) {
-                    f.delete();
+                File[] files = coverDir.listFiles();
+                if (files != null) {
+                    for (File f : files) {
+                        f.delete();
+                    }
                 }
             }
         });

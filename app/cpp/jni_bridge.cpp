@@ -263,17 +263,15 @@ static bool load_nvram_from_file(const char* path) {
         return false;
     }
 
-    uint8_t* nvram_data = new uint8_t[file_size];
-    if (fread(nvram_data, 1, file_size, file) != file_size) {
+    std::vector<uint8_t> nvram_data(file_size);
+    if (fread(nvram_data.data(), 1, file_size, file) != file_size) {
         LOGE("Failed to read NVRAM data from file");
-        delete[] nvram_data;
         fclose(file);
         return false;
     }
     fclose(file);
 
-    bool success = opera_nvram_set_data(nvram_data, file_size);
-    delete[] nvram_data;
+    bool success = opera_nvram_set_data(nvram_data.data(), file_size);
 
     if (!success) {
         LOGE("Failed to load NVRAM data into emulator");

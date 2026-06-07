@@ -85,7 +85,7 @@ final class SafFileImporter {
                         try (FileOutputStream fos = new FileOutputStream(destFile)) {
                             byte[] buffer = new byte[8192];
                             int len;
-                            while ((len = zis.read(buffer)) > 0) {
+                            while ((len = zis.read(buffer)) != -1) {
                                 fos.write(buffer, 0, len);
                             }
                         }

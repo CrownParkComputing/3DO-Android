@@ -228,7 +228,7 @@
                     android:padding="8dp"
                     android:layout_marginBottom="12dp" />
 
-                <Switch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/crt_switch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -238,7 +238,7 @@
                     android:thumbTint="#4488FF"
                     android:trackTint="#252547" />
 
-                <Switch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/bezel_switch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -248,7 +248,7 @@
                     android:thumbTint="#4488FF"
                     android:trackTint="#252547" />
 
-                <Switch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/debug_overlay_switch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
