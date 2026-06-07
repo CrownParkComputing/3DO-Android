@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <android/log.h>
 #include <string>
+#include <vector>
 #include <mutex>
 #include <cstdio>
 #include <cstdint>

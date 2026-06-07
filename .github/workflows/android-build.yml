@@ -1,27 +1,37 @@
-name: Play Store AAB
-
-# Builds the signed release App Bundle (.aab) and uploads it to Google Play.
-# No debug/release APKs and no GitHub Releases are produced any more — the AAB
-# for the Play Store is the only build artifact.
+name: Build Play Store AAB
 
 on:
   push:
     branches: [ main, master ]
-    tags: [ 'v*' ]
   workflow_dispatch:
     inputs:
+      upload_to_play:
+        description: 'Upload the signed AAB to Google Play'
+        required: true
+        default: false
+        type: boolean
       play_track:
         description: 'Play Store track to publish to'
         required: false
         default: 'internal'
         type: choice
         options: [ internal, alpha, beta, production ]
+      play_status:
+        description: 'Google Play release status'
+        required: false
+        default: 'draft'
+        type: choice
+        options: [ draft, completed ]
 
 permissions:
   contents: read
 
+concurrency:
+  group: play-store-aab-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  playstore-aab:
+  build-aab:
     runs-on: ubuntu-latest
 
     steps:
@@ -42,75 +52,70 @@ jobs:
     - name: Make Gradle wrapper executable
       run: chmod +x ./gradlew
 
-    - name: Materialize release keystore
-      run: printf '%s' '${{ secrets.KEYSTORE_BASE64 }}' | base64 --decode > release.keystore
+    - name: Check signing secrets
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: |
+        missing=0
+        for secret_name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+          if [ -z "${!secret_name}" ]; then
+            echo "::error::Missing required GitHub secret: ${secret_name}"
+            missing=1
+          fi
+        done
+        exit "$missing"
 
-    - name: Build release AAB
+    - name: Decode signing keystore
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+      run: |
+        printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+        test -s "$KEYSTORE_PATH"
+
+    - name: Build signed AAB
       run: ./gradlew --no-daemon bundleRelease
       env:
-        KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
+        KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        KEY_ALIAS: ${{ secrets.KEY_ALIAS || '4do-key' }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-    - name: Upload AAB Artifact
+    - name: Upload AAB artifact
       uses: actions/upload-artifact@v4
       with:
-        name: 4do-playstore-aab
+        name: 4do-signed-play-store-aab
         path: app/build/outputs/bundle/release/app-release.aab
-        retention-days: 1
+        if-no-files-found: error
+        retention-days: 7
 
-    - name: Remove release keystore
+    - name: Remove signing keystore
       if: always()
-      run: rm -f release.keystore
+      run: rm -f "${{ runner.temp }}/release.keystore"
 
-    # Upload to Google Play. Requires the PLAY_SERVICE_ACCOUNT_JSON secret
-    # (a Google Play service-account JSON key with "Release manager" rights).
     - name: Check Play Store credentials
       id: play_check
+      if: github.event_name == 'workflow_dispatch' && inputs.upload_to_play
+      env:
+        PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
       run: |
-        if [ -n "${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}" ]; then
+        if [ -n "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
           echo "available=true" >> "$GITHUB_OUTPUT"
         else
-          echo "::warning::PLAY_SERVICE_ACCOUNT_JSON secret not set — skipping Play upload (AAB was still built)."
+          echo "::error::Missing required GitHub secret: PLAY_SERVICE_ACCOUNT_JSON"
           echo "available=false" >> "$GITHUB_OUTPUT"
+          exit 1
         fi
 
     - name: Upload AAB to Google Play
-      if: steps.play_check.outputs.available == 'true'
+      if: github.event_name == 'workflow_dispatch' && inputs.upload_to_play && steps.play_check.outputs.available == 'true'
       uses: r0adkll/upload-google-play@v1.1.3
       with:
         serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         packageName: com.fourdo.android
         releaseFiles: app/build/outputs/bundle/release/app-release.aab
-        track: ${{ github.event.inputs.play_track || 'internal' }}
-        status: completed
-
-  # Keep the Actions tab tidy: retain only the 5 most recent runs of this
-  # workflow.
-  cleanup:
-    needs: playstore-aab
-    if: always()
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-    - name: Prune runs (keep last 5)
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const { owner, repo } = context.repo;
-
-          // 1. Keep only the 5 newest runs of THIS workflow; delete the rest.
-          const { data: thisRun } = await github.rest.actions.getWorkflowRun({
-            owner, repo, run_id: context.runId });
-          const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
-            owner, repo, workflow_id: thisRun.workflow_id, per_page: 100 });
-          const stale = runs
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-            .slice(5);
-          core.info(`Found ${runs.length} runs; deleting ${stale.length}.`);
-          for (const r of stale) {
-            await github.rest.actions.deleteWorkflowRun({ owner, repo, run_id: r.id })
-              .catch(e => core.warning(`run ${r.id}: ${e.message}`));
-          }
+        track: ${{ inputs.play_track }}
+        status: ${{ inputs.play_status }}
