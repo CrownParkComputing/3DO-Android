@@ -33,8 +33,10 @@ Install from **[Google Play](https://play.google.com/store/apps/details?id=com.f
 
 | | |
 |---|---|
-| ![Title screen](screenshots/title.png) | ![Game library](screenshots/library.png) |
-| ![Game details](screenshots/game-detail.png) | ![In-game, correct orientation](screenshots/gameplay.png) |
+| ![Running emulator with virtual pad](screenshots/store/01-gameplay-virtual-pad.png) | ![Running gameplay with bezel](screenshots/store/02-gameplay-bezel.png) |
+| ![3DO title screen gameplay](screenshots/store/03-gameplay-title.png) | ![Game library](screenshots/store/04-library.png) |
+| ![Game details](screenshots/store/05-game-details.png) | ![Settings sidebar](screenshots/store/06-settings-sidebar.png) |
+| ![Bezel library state](screenshots/store/07-bezels-library.png) | |
 
 ## Features
 

@@ -30,8 +30,10 @@ For documentation and more information, visit the **[3DO Opera Documentation sit
 
 | | |
 |---|---|
-| ![Title screen](docs/screenshots/title.png) | ![Game library](docs/screenshots/library.png) |
-| ![Game details](docs/screenshots/game-detail.png) | ![In-game (correct orientation)](docs/screenshots/gameplay.png) |
+| ![Running emulator with virtual pad](docs/screenshots/store/01-gameplay-virtual-pad.png) | ![Running gameplay with bezel](docs/screenshots/store/02-gameplay-bezel.png) |
+| ![3DO title screen gameplay](docs/screenshots/store/03-gameplay-title.png) | ![Game library](docs/screenshots/store/04-library.png) |
+| ![Game details](docs/screenshots/store/05-game-details.png) | ![Settings sidebar](docs/screenshots/store/06-settings-sidebar.png) |
+| ![Bezel library state](docs/screenshots/store/07-bezels-library.png) | |
 
 ## Features
 

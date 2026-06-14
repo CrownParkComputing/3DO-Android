@@ -519,8 +519,14 @@ public class EmulatorActivity extends AppCompatActivity {
 
     private View createVirtualPadOverlay() {
         FrameLayout overlay = new FrameLayout(this);
-        overlay.setClickable(false);
+        overlay.setClickable(true);
         overlay.setFocusable(false);
+        overlay.setOnTouchListener((view, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                showTopControlsTemporarily();
+            }
+            return true;
+        });
 
         placePadButton(overlay, makeVirtualPadButton("L", ControllerMappingManager.BUTTON_L1, dp(118), dp(42)),
                 Gravity.LEFT | Gravity.TOP, dp(82), dp(58), 0, 0);
