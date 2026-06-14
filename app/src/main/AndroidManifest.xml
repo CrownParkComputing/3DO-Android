@@ -48,13 +48,6 @@
         </activity>
 
         <activity
-            android:name=".GameLibraryActivity"
-            android:exported="false"
-            android:screenOrientation="landscape"
-            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode">
-        </activity>
-
-        <activity
             android:name=".CDLoadingActivity"
             android:exported="false"
             android:screenOrientation="landscape"

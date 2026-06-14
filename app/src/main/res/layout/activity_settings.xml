@@ -248,6 +248,15 @@
                     android:thumbTint="#4488FF"
                     android:trackTint="#252547" />
 
+                <Button
+                    android:id="@+id/download_bezels_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Download Bezels from GitHub"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#4488FF"
+                    android:layout_marginBottom="12dp" />
+
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/debug_overlay_switch"
                     android:layout_width="match_parent"

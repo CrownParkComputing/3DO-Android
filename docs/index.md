@@ -1,13 +1,13 @@
 ---
-title: 4DO Emulator for Android
+title: 3DO Opera
 layout: default
 ---
 
 <p align="center">
-  <img src="screenshots/icon.png" width="120" alt="4DO Android icon" />
+  <img src="screenshots/icon.png" width="120" alt="3DO Opera icon" />
 </p>
 
-# 4DO Emulator for Android
+# 3DO Opera
 
 A free, open-source Android emulator for 3DO software built from the **Opera** codebase (a fork of 4DO), designed for broad compatibility across modern Android phones, tablets, foldables, and handheld devices.
 
@@ -47,7 +47,7 @@ Install from **[Google Play](https://play.google.com/store/apps/details?id=com.f
 
 1. Install from [Google Play](https://play.google.com/store/apps/details?id=com.fourdo.android).
 2. Open the app and follow the on-screen setup prompts.
-3. Launch **4DO Emulator** from your app drawer.
+3. Launch **3DO Opera** from your app drawer.
 
 ## Quick Start
 
@@ -70,12 +70,14 @@ Contributions are welcome! Please see the [CONTRIBUTING.md](https://github.com/C
 
 ## License
 
-The core emulator logic is based on **Opera** and is licensed under the **LGPL v2.1**. The Android-specific frontend and UI code are provided under the MIT License. See the [LICENSE](https://github.com/CrownParkComputing/4DO-Android/blob/main/LICENSE) for details.
+The core emulator logic is based on **Opera** (a fork of **4DO**, which is based on **FreeDO**) and is licensed under a **modified LGPL v2.1**. This modification includes a **strict non-commercial restriction** inherited from the original FreeDO source: any commercial use or sale of the software is strictly forbidden without explicit approval from the original authors.
+
+The Android-specific frontend and UI code are provided under the MIT License. See the [LICENSE](https://github.com/CrownParkComputing/4DO-Android/blob/main/LICENSE) file for details.
 
 ## Acknowledgements
 
-- **FreeDO**: The original 3DO emulator by Alexander64, Maxim Grishin, Andrey Tkachuk, Viktor Sen'ko (johnnydude), and others.
-- **4DO**: Built upon FreeDO by **Viktor "johnnydude" Sen'ko**.
+- **FreeDO**: The original 3DO emulator by **Alexander Troosh, Maxim Grishin, Allen Wright, John Sammons, and Felix Lazarev**.
+- **4DO**: An open-source fork of FreeDO maintained by **Viktor "johnnydude" Sen'ko**.
 - **Opera**: An optimized fork of 4DO maintained by the [Opera-Libretro](https://github.com/libretro/opera-libretro) community.
 - **Opera Android**: This project is an Android port/frontend for the Opera core.
 - **Tapwave Zodiac** and broader 3DO preservation community.

@@ -424,7 +424,7 @@ public class SetupWizardActivity extends AppCompatActivity {
             return;
         }
 
-        Intent intent = new Intent(this, GameLibraryActivity.class);
+        Intent intent = new Intent(this, EmulatorActivity.class);
         startActivity(intent);
         finish();
     }

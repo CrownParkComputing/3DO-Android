@@ -8,6 +8,8 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -15,7 +17,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.GridView;
 import android.widget.ImageView;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -57,11 +58,13 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
     private ViewPager2 carouselView;
     private ProgressBar loadingProgress;
     private TextView statusText;
-    private ImageButton settingsButton;
-    private ImageButton searchButton;
-    private ImageButton viewToggleBtn;
+    private EditText librarySearch;
+    private Button settingsButton;
+    private Button searchButton;
+    private Button viewToggleBtn;
 
     private final List<GameItem> gameItems = new ArrayList<>();
+    private final List<GameItem> visibleGameItems = new ArrayList<>();
     private GameGridAdapter adapter;
     private CarouselAdapter carouselAdapter;
     private IgdbService igdbService;
@@ -101,6 +104,7 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         carouselView = findViewById(R.id.carousel_view);
         loadingProgress = findViewById(R.id.loading_progress);
         statusText = findViewById(R.id.status_text);
+        librarySearch = findViewById(R.id.library_search);
         settingsButton = findViewById(R.id.settings_button);
         searchButton = findViewById(R.id.search_button);
         viewToggleBtn = findViewById(R.id.view_toggle_button);
@@ -149,18 +153,18 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
             return;
         }
 
-        adapter = new GameGridAdapter(this, gameItems);
+        adapter = new GameGridAdapter(this, visibleGameItems);
         gameGridView.setAdapter(adapter);
         
-        carouselAdapter = new CarouselAdapter(this, gameItems);
+        carouselAdapter = new CarouselAdapter(this, visibleGameItems);
         carouselView.setAdapter(carouselAdapter);
         carouselView.setOffscreenPageLimit(3);
 
         applyViewStyle();
 
         gameGridView.setOnItemClickListener((parent, view, position, id) -> {
-            if (position >= 0 && position < gameItems.size()) {
-                showGameDetails(gameItems.get(position), position);
+            if (position >= 0 && position < visibleGameItems.size()) {
+                showGameDetails(visibleGameItems.get(position), position);
             }
         });
 
@@ -169,7 +173,31 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
             startActivity(intent);
         });
 
-        searchButton.setOnClickListener(v -> showSearchDialog());
+        searchButton.setOnClickListener(v -> {
+            if (libraryPath != null && !libraryPath.isEmpty()) {
+                File refreshRoot = new File(libraryPath);
+                if (refreshRoot.isDirectory()) {
+                    loadGames(refreshRoot);
+                }
+            }
+        });
+
+        if (librarySearch != null) {
+            librarySearch.addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                }
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    applyLibraryFilter();
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {
+                }
+            });
+        }
 
         loadGames(root);
     }
@@ -366,26 +394,27 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
     }
     
     private void cycleViewStyle() {
-        viewStyle = (viewStyle + 1) % 4;
+        viewStyle = viewStyle == SettingsActivity.VIEW_STYLE_CAROUSEL
+                ? SettingsActivity.VIEW_STYLE_GRID_MEDIUM
+                : SettingsActivity.VIEW_STYLE_CAROUSEL;
         
         SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
         prefs.edit().putInt(SettingsActivity.KEY_VIEW_STYLE, viewStyle).apply();
         
         applyViewStyle();
         
-        String[] styleNames = {"Small Grid", "Medium Grid", "Large Grid", "Carousel"};
-        Toast.makeText(this, "View: " + styleNames[viewStyle], Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "View: " + (viewStyle == SettingsActivity.VIEW_STYLE_CAROUSEL ? "Carousel" : "Grid"), Toast.LENGTH_SHORT).show();
     }
     
     private void applyViewStyle() {
         switch (viewStyle) {
             case SettingsActivity.VIEW_STYLE_GRID_SMALL:
-                gameGridView.setNumColumns(6);
+                gameGridView.setNumColumns(4);
                 gameGridView.setVisibility(View.VISIBLE);
                 carouselView.setVisibility(View.GONE);
                 break;
             case SettingsActivity.VIEW_STYLE_GRID_MEDIUM:
-                gameGridView.setNumColumns(5);
+                gameGridView.setNumColumns(4);
                 gameGridView.setVisibility(View.VISIBLE);
                 carouselView.setVisibility(View.GONE);
                 break;
@@ -399,7 +428,55 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
                 carouselView.setVisibility(View.VISIBLE);
                 break;
         }
+
+        if (viewToggleBtn != null) {
+            viewToggleBtn.setText(viewStyle == SettingsActivity.VIEW_STYLE_CAROUSEL ? "Grid" : "Carousel");
+        }
         
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
+        if (carouselAdapter != null) {
+            carouselAdapter.notifyDataSetChanged();
+        }
+    }
+
+    private void applyLibraryFilter() {
+        String query = librarySearch == null ? "" : librarySearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+        visibleGameItems.clear();
+
+        for (GameItem item : gameItems) {
+            if (matchesLibraryQuery(item, query)) {
+                visibleGameItems.add(item);
+            }
+        }
+
+        notifyLibraryChanged();
+
+        if (gameItems.isEmpty()) {
+            statusText.setText(R.string.no_games_found);
+            statusText.setVisibility(View.VISIBLE);
+        } else if (visibleGameItems.isEmpty()) {
+            statusText.setText("No matches for \"" + query + "\"");
+            statusText.setVisibility(View.VISIBLE);
+        } else {
+            statusText.setText(visibleGameItems.size() + " of " + gameItems.size() + " games");
+            statusText.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private boolean matchesLibraryQuery(GameItem item, String query) {
+        if (query == null || query.isEmpty()) {
+            return true;
+        }
+        String title = item.igdbGame != null ? item.igdbGame.name : item.name;
+        String publisher = item.igdbGame != null ? item.igdbGame.publisher : "";
+        String fileName = item.filePath == null ? "" : new File(item.filePath).getName();
+        String haystack = (title + " " + item.name + " " + publisher + " " + fileName).toLowerCase(Locale.ROOT);
+        return haystack.contains(query);
+    }
+
+    private void notifyLibraryChanged() {
         if (adapter != null) {
             adapter.notifyDataSetChanged();
         }
@@ -433,9 +510,8 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
             }
 
             runOnUiThread(() -> {
-                adapter.notifyDataSetChanged();
-                carouselAdapter.notifyDataSetChanged();
                 loadingProgress.setVisibility(View.GONE);
+                applyLibraryFilter();
                 
                 if (gameItems.isEmpty()) {
                     statusText.setText(R.string.no_games_found);
@@ -623,16 +699,14 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
                                 item.coverBitmap = bitmap;
                                 item.coverLoaded = true;
                                 runOnUiThread(() -> {
-                                    adapter.notifyDataSetChanged();
-                                    carouselAdapter.notifyDataSetChanged();
+                                    notifyLibraryChanged();
                                 });
                             }
                         });
                     }
                     
                     runOnUiThread(() -> {
-                        adapter.notifyDataSetChanged();
-                        carouselAdapter.notifyDataSetChanged();
+                        applyLibraryFilter();
                     });
                 } else {
                     log("No IGDB match for: " + item.name);
@@ -696,12 +770,15 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
         }
         
         // Set summary
-        if (item.igdbGame != null && item.igdbGame.summary != null && !item.igdbGame.summary.isEmpty()) {
-            summaryView.setText(item.igdbGame.summary);
-            summaryView.setVisibility(View.VISIBLE);
+        String bezelStatus = BezelResolver.describeBezel(this, item.filePath);
+        String summary = item.igdbGame != null && item.igdbGame.summary != null ? item.igdbGame.summary : "";
+        if (!summary.isEmpty()) {
+            summary = summary + "\n\n" + bezelStatus;
         } else {
-            summaryView.setVisibility(View.GONE);
+            summary = bezelStatus;
         }
+        summaryView.setText(summary);
+        summaryView.setVisibility(View.VISIBLE);
 
         builder.setView(view);
         AlertDialog dialog = builder.create();
@@ -808,8 +885,7 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
             loadGames(root);
         } else {
             gameItems.remove(item);
-            adapter.notifyDataSetChanged();
-            carouselAdapter.notifyDataSetChanged();
+            applyLibraryFilter();
         }
     }
 
@@ -1012,16 +1088,14 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
                     item.coverBitmap = bitmap;
                     item.coverLoaded = true;
                     runOnUiThread(() -> {
-                        adapter.notifyDataSetChanged();
-                        carouselAdapter.notifyDataSetChanged();
+                        notifyLibraryChanged();
                     });
                 }
             });
         }
         
         runOnUiThread(() -> {
-            adapter.notifyDataSetChanged();
-            carouselAdapter.notifyDataSetChanged();
+            applyLibraryFilter();
             Toast.makeText(this, "Game info updated: " + game.name, Toast.LENGTH_SHORT).show();
         });
     }
@@ -1078,16 +1152,14 @@ public class GameLibraryActivity extends AppCompatActivity implements CarouselAd
                             item.coverBitmap = bitmap;
                             item.coverLoaded = true;
                             runOnUiThread(() -> {
-                                adapter.notifyDataSetChanged();
-                                carouselAdapter.notifyDataSetChanged();
+                                notifyLibraryChanged();
                             });
                         }
                     });
                 }
             }
             
-            adapter.notifyDataSetChanged();
-            carouselAdapter.notifyDataSetChanged();
+            applyLibraryFilter();
         });
     }
 }

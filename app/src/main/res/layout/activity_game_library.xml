@@ -2,92 +2,124 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#0B0D10"
+    android:clickable="true"
+    android:focusable="true"
     android:orientation="vertical"
-    android:background="#1a1a2e">
+    android:paddingStart="18dp"
+    android:paddingTop="12dp"
+    android:paddingEnd="18dp"
+    android:paddingBottom="12dp">
 
-    <!-- Header with icons -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        android:gravity="end|center_vertical"
-        android:background="#252547">
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-        <ImageButton
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Game Library"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp" />
+
+        <Button
             android:id="@+id/view_toggle_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_menu_view"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Change View"
-            android:scaleType="centerInside"
-            android:padding="8dp"
-            android:layout_marginStart="4dp" />
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:minWidth="64dp"
+            android:minHeight="32dp"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:text="Carousel"
+            android:textAllCaps="false"
+            android:textSize="12sp" />
 
-        <ImageButton
+        <Button
             android:id="@+id/search_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_menu_search"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Search"
-            android:scaleType="centerInside"
-            android:padding="8dp"
-            android:layout_marginStart="4dp" />
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="6dp"
+            android:minWidth="64dp"
+            android:minHeight="32dp"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:text="Refresh"
+            android:textAllCaps="false"
+            android:textSize="12sp" />
 
-        <ImageButton
+        <Button
             android:id="@+id/settings_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_menu_manage"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Settings"
-            android:scaleType="centerInside"
-            android:padding="8dp"
-            android:layout_marginStart="4dp" />
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="6dp"
+            android:minWidth="64dp"
+            android:minHeight="32dp"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:text="Settings"
+            android:textAllCaps="false"
+            android:textSize="12sp" />
 
     </LinearLayout>
 
-    <!-- Loading -->
-    <ProgressBar
-        android:id="@+id/loading_progress"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:layout_marginTop="48dp"
-        android:visibility="gone" />
+    <EditText
+        android:id="@+id/library_search"
+        android:layout_width="match_parent"
+        android:layout_height="42dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="8dp"
+        android:hint="Search games"
+        android:imeOptions="actionSearch"
+        android:inputType="text"
+        android:maxLines="1"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:singleLine="true"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#8C939D" />
 
-    <!-- Status text -->
     <TextView
         android:id="@+id/status_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="48dp"
-        android:textColor="#AAAAAA"
-        android:textSize="16sp"
-        android:gravity="center"
+        android:paddingBottom="8dp"
+        android:textColor="#BAC2CC"
+        android:textSize="12sp"
         android:visibility="gone" />
 
-    <!-- Game Grid -->
-    <GridView
-        android:id="@+id/game_grid"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:numColumns="5"
-        android:horizontalSpacing="8dp"
-        android:verticalSpacing="8dp"
-        android:padding="8dp"
-        android:stretchMode="columnWidth"
-        android:gravity="center" />
+        android:layout_weight="1">
 
-    <!-- Carousel View -->
-    <androidx.viewpager2.widget.ViewPager2
-        android:id="@+id/carousel_view"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:visibility="gone" />
+        <GridView
+            android:id="@+id/game_grid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:gravity="center"
+            android:horizontalSpacing="12dp"
+            android:numColumns="4"
+            android:padding="0dp"
+            android:stretchMode="none"
+            android:verticalSpacing="12dp" />
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/carousel_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/loading_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
 </LinearLayout>

@@ -54,9 +54,12 @@ public class SplashActivity extends Activity {
             if (launchGamePath != null && !launchGamePath.isEmpty()) {
                 EmulatorActivity.start(SplashActivity.this, launchGamePath);
             } else {
-                // Setup complete - go to game library
-                Intent intent = new Intent(SplashActivity.this, GameLibraryActivity.class);
-                startActivity(intent);
+                String lastGamePath = EmulatorPathStore.getSavedLastGamePath(SplashActivity.this);
+                if (EmulatorPathStore.isSupportedCdPath(lastGamePath)) {
+                    EmulatorActivity.start(SplashActivity.this, lastGamePath);
+                } else {
+                    EmulatorActivity.start(SplashActivity.this);
+                }
             }
         }
         finish();

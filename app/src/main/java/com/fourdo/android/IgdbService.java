@@ -30,7 +30,7 @@ public class IgdbService {
     private static final String TAG = "IgdbService";
     private static final int PLATFORM_3DO_ID = 50;
     private static final String PLATFORM_3DO_NAME = "3DO";
-    private static final String GAME_FIELDS = "name, cover.url, summary, first_release_date, screenshots.url, platforms.name, involved_companies.company.name, involved_companies.publisher";
+    private static final String GAME_FIELDS = "name, cover.url, summary, first_release_date, screenshots.url, artworks.url, platforms.name, involved_companies.company.name, involved_companies.publisher";
     
     // IGDB API credentials from BuildConfig
     private static final String CLIENT_ID = BuildConfig.IGDB_CLIENT_ID;
@@ -52,6 +52,7 @@ public class IgdbService {
         public String summary;
         public String coverUrl;
         public List<String> screenshots = new ArrayList<>();
+        public List<String> artworks = new ArrayList<>();
         public List<String> platforms = new ArrayList<>();
         public String releaseDate;
         public String publisher;
@@ -63,6 +64,10 @@ public class IgdbService {
     
     public interface CoverCallback {
         void onCoverLoaded(Bitmap cover, String localPath);
+    }
+
+    public interface MediaCallback {
+        void onImageLoaded(Bitmap bitmap);
     }
     
     public interface GameCallback {
@@ -82,59 +87,136 @@ public class IgdbService {
         }
         return instance;
     }
+
+    public boolean hasCredentials() {
+        return CLIENT_ID != null && !CLIENT_ID.trim().isEmpty()
+                && CLIENT_SECRET != null && !CLIENT_SECRET.trim().isEmpty();
+    }
+
+    public void cacheGame(String key, IgdbGame game) {
+        boolean changed = false;
+        synchronized (gameCache) {
+            changed |= putCacheEntryLocked(key, game);
+            if (game != null && game.name != null && !game.name.trim().isEmpty()) {
+                changed |= putCacheEntryLocked(game.name, game);
+            }
+        }
+        if (changed) {
+            saveGameCacheToDisk();
+        }
+    }
+
+    public IgdbGame getCachedGame(String key) {
+        if (key == null || key.trim().isEmpty()) {
+            return null;
+        }
+        synchronized (gameCache) {
+            return gameCache.get(normalizeCacheKey(key));
+        }
+    }
+
+    public String encodeGame(IgdbGame game) {
+        if (game == null) {
+            return "";
+        }
+        try {
+            return gameToJson(game).toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public IgdbGame decodeGame(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return parseGameFromJson(new JSONObject(value));
+        } catch (Exception e) {
+            return null;
+        }
+    }
     
     private File getGameCacheFile() {
         return new File(context.getCacheDir(), "igdb_game_cache.json");
     }
     
     private void loadGameCacheFromDisk() {
-        executor.execute(() -> {
-            try {
-                File cacheFile = getGameCacheFile();
-                if (cacheFile.exists()) {
-                    FileInputStream fis = new FileInputStream(cacheFile);
-                    byte[] data = new byte[(int) cacheFile.length()];
-                    int bytesRead = fis.read(data);
-                    fis.close();
-                    
-                    if (bytesRead > 0) {
-                        String json = new String(data, StandardCharsets.UTF_8);
-                        JSONObject root = new JSONObject(json);
-                        JSONArray arr = root.getJSONArray("games");
-                        
-                        for (int i = 0; i < arr.length(); i++) {
-                            JSONObject item = arr.getJSONObject(i);
-                            IgdbGame game = parseGameFromJson(item);
-                            String key = game.name.toLowerCase().trim();
-                            gameCache.put(key, game);
+        try {
+            File cacheFile = getGameCacheFile();
+            if (!cacheFile.exists()) {
+                return;
+            }
+
+            FileInputStream fis = new FileInputStream(cacheFile);
+            byte[] data = new byte[(int) cacheFile.length()];
+            int bytesRead = fis.read(data);
+            fis.close();
+
+            if (bytesRead <= 0) {
+                return;
+            }
+
+            String json = new String(data, StandardCharsets.UTF_8);
+            JSONObject root = new JSONObject(json);
+            JSONArray entries = root.optJSONArray("entries");
+
+            synchronized (gameCache) {
+                if (entries != null) {
+                    for (int i = 0; i < entries.length(); i++) {
+                        JSONObject entry = entries.getJSONObject(i);
+                        JSONObject gameJson = entry.optJSONObject("game");
+                        if (gameJson == null) {
+                            continue;
                         }
-                        
-                        Log.d(TAG, "Loaded " + gameCache.size() + " games from cache");
+                        IgdbGame game = parseGameFromJson(gameJson);
+                        putCacheEntryLocked(entry.optString("key", ""), game);
+                        if (game.name != null && !game.name.trim().isEmpty()) {
+                            putCacheEntryLocked(game.name, game);
+                        }
+                    }
+                } else {
+                    JSONArray arr = root.optJSONArray("games");
+                    if (arr != null) {
+                        for (int i = 0; i < arr.length(); i++) {
+                            IgdbGame game = parseGameFromJson(arr.getJSONObject(i));
+                            putCacheEntryLocked(game.name, game);
+                        }
                     }
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to load game cache: " + e.getMessage());
             }
-        });
+
+            Log.d(TAG, "Loaded " + gameCache.size() + " IGDB cache keys");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to load game cache: " + e.getMessage());
+        }
     }
     
     private void saveGameCacheToDisk() {
         executor.execute(() -> {
             try {
-                JSONArray arr = new JSONArray();
-                for (IgdbGame game : gameCache.values()) {
-                    arr.put(gameToJson(game));
+                JSONArray entries = new JSONArray();
+                synchronized (gameCache) {
+                    for (Map.Entry<String, IgdbGame> cacheEntry : gameCache.entrySet()) {
+                        if (cacheEntry.getKey() == null || cacheEntry.getValue() == null) {
+                            continue;
+                        }
+                        JSONObject item = new JSONObject();
+                        item.put("key", cacheEntry.getKey());
+                        item.put("game", gameToJson(cacheEntry.getValue()));
+                        entries.put(item);
+                    }
                 }
                 
                 JSONObject root = new JSONObject();
-                root.put("games", arr);
+                root.put("entries", entries);
                 
                 File cacheFile = getGameCacheFile();
                 FileOutputStream fos = new FileOutputStream(cacheFile);
                 fos.write(root.toString().getBytes(StandardCharsets.UTF_8));
                 fos.close();
                 
-                Log.d(TAG, "Saved " + gameCache.size() + " games to cache");
+                Log.d(TAG, "Saved " + entries.length() + " IGDB cache keys");
             } catch (Exception e) {
                 Log.e(TAG, "Failed to save game cache: " + e.getMessage());
             }
@@ -153,6 +235,14 @@ public class IgdbService {
         JSONArray platforms = new JSONArray();
         for (String p : game.platforms) platforms.put(p);
         item.put("platforms", platforms);
+
+        JSONArray screenshots = new JSONArray();
+        for (String screenshot : game.screenshots) screenshots.put(screenshot);
+        item.put("screenshots", screenshots);
+
+        JSONArray artworks = new JSONArray();
+        for (String artwork : game.artworks) artworks.put(artwork);
+        item.put("artworks", artworks);
         
         return item;
     }
@@ -170,6 +260,20 @@ public class IgdbService {
         if (platforms != null) {
             for (int i = 0; i < platforms.length(); i++) {
                 game.platforms.add(platforms.getString(i));
+            }
+        }
+
+        JSONArray screenshots = item.optJSONArray("screenshots");
+        if (screenshots != null) {
+            for (int i = 0; i < screenshots.length(); i++) {
+                game.screenshots.add(screenshots.getString(i));
+            }
+        }
+
+        JSONArray artworks = item.optJSONArray("artworks");
+        if (artworks != null) {
+            for (int i = 0; i < artworks.length(); i++) {
+                game.artworks.add(artworks.getString(i));
             }
         }
         
@@ -215,10 +319,10 @@ public class IgdbService {
      * Look up a game by name, using cache if available
      */
     public void lookupGame(String gameName, GameCallback callback) {
-        String key = gameName.toLowerCase().trim();
+        String key = normalizeCacheKey(gameName);
         
         // Check in-memory cache first
-        IgdbGame cached = gameCache.get(key);
+        IgdbGame cached = getCachedGame(gameName);
         if (cached != null) {
             Log.d(TAG, "Cache hit for: " + gameName);
             mainHandler.post(() -> callback.onGameLoaded(cached));
@@ -230,9 +334,7 @@ public class IgdbService {
             if (!games.isEmpty()) {
                 IgdbGame game = games.get(0);
                 
-                // Cache it
-                gameCache.put(key, game);
-                saveGameCacheToDisk();
+                cacheGame(key, game);
                 
                 callback.onGameLoaded(game);
             } else {
@@ -252,7 +354,7 @@ public class IgdbService {
 
                 // Check cache first
                 String cacheKey = safeQuery.toLowerCase().trim();
-                IgdbGame cachedGame = gameCache.get(cacheKey);
+                IgdbGame cachedGame = getCachedGame(cacheKey);
                 if (cachedGame != null) {
                     List<IgdbGame> result = new ArrayList<>();
                     result.add(cachedGame);
@@ -274,12 +376,16 @@ public class IgdbService {
                     games = filtered3do.isEmpty() ? fallbackGames : filtered3do;
                 }
                 
-                // Cache results
-                for (IgdbGame game : games) {
-                    String key = game.name.toLowerCase().trim();
-                    gameCache.put(key, game);
+                boolean changed = false;
+                synchronized (gameCache) {
+                    for (IgdbGame game : games) {
+                        changed |= putCacheEntryLocked(game.name, game);
+                    }
+                    if (!games.isEmpty()) {
+                        changed |= putCacheEntryLocked(cacheKey, games.get(0));
+                    }
                 }
-                if (!games.isEmpty()) {
+                if (changed) {
                     saveGameCacheToDisk();
                 }
                 
@@ -457,6 +563,17 @@ public class IgdbService {
                     }
                 }
 
+                if (item.has("artworks") && !item.isNull("artworks")) {
+                    JSONArray art = item.getJSONArray("artworks");
+                    for (int j = 0; j < art.length(); j++) {
+                        String artUrl = art.getJSONObject(j).optString("url", "");
+                        if (!artUrl.isEmpty()) {
+                            if (artUrl.startsWith("//")) artUrl = "https:" + artUrl;
+                            game.artworks.add(artUrl);
+                        }
+                    }
+                }
+
                 // Platforms
                 if (item.has("platforms") && !item.isNull("platforms")) {
                     JSONArray platforms = item.getJSONArray("platforms");
@@ -510,10 +627,80 @@ public class IgdbService {
      * Update cache with a new game entry
      */
     public void updateCache(String key, IgdbGame game) {
-        if (key != null && !key.isEmpty() && game != null) {
-            gameCache.put(key.toLowerCase().trim(), game);
+        boolean changed;
+        synchronized (gameCache) {
+            changed = putCacheEntryLocked(key, game);
+        }
+        if (changed) {
             saveGameCacheToDisk();
         }
+    }
+
+    private boolean putCacheEntryLocked(String key, IgdbGame game) {
+        String cacheKey = normalizeCacheKey(key);
+        if (cacheKey.isEmpty() || game == null) {
+            return false;
+        }
+        IgdbGame previous = gameCache.put(cacheKey, game);
+        return previous == null || previous.id != game.id;
+    }
+
+    private String normalizeCacheKey(String key) {
+        return key == null ? "" : key.toLowerCase().trim();
+    }
+
+    public void loadMediaImage(String imageUrl, String cacheKey, MediaCallback callback) {
+        if (imageUrl == null || imageUrl.trim().isEmpty() || cacheKey == null || cacheKey.trim().isEmpty()) {
+            mainHandler.post(() -> callback.onImageLoaded(null));
+            return;
+        }
+
+        executor.execute(() -> {
+            try {
+                File cacheDir = new File(context.getCacheDir(), "igdb_media");
+                if (!cacheDir.exists() && !cacheDir.mkdirs()) {
+                    mainHandler.post(() -> callback.onImageLoaded(null));
+                    return;
+                }
+
+                File cachedFile = new File(cacheDir, sanitizeCacheName(cacheKey) + ".jpg");
+                if (cachedFile.isFile()) {
+                    Bitmap bitmap = BitmapFactory.decodeFile(cachedFile.getAbsolutePath());
+                    if (bitmap != null) {
+                        mainHandler.post(() -> callback.onImageLoaded(bitmap));
+                        return;
+                    }
+                }
+
+                String finalUrl = imageUrl.startsWith("//") ? "https:" + imageUrl : imageUrl;
+                finalUrl = finalUrl.replace("t_thumb", "t_screenshot_big");
+                URL url = new URL(finalUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(10000);
+
+                Bitmap bitmap;
+                try (InputStream input = conn.getInputStream()) {
+                    bitmap = BitmapFactory.decodeStream(input);
+                } finally {
+                    conn.disconnect();
+                }
+
+                if (bitmap != null) {
+                    try (FileOutputStream output = new FileOutputStream(cachedFile)) {
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output);
+                    }
+                }
+                Bitmap result = bitmap;
+                mainHandler.post(() -> callback.onImageLoaded(result));
+            } catch (Exception e) {
+                mainHandler.post(() -> callback.onImageLoaded(null));
+            }
+        });
+    }
+
+    private String sanitizeCacheName(String value) {
+        return value.replaceAll("[^A-Za-z0-9._-]", "_");
     }
     
     /**

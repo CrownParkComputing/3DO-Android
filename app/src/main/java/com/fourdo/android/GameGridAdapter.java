@@ -47,6 +47,7 @@ public class GameGridAdapter extends BaseAdapter {
             holder = new ViewHolder();
             holder.coverView = convertView.findViewById(R.id.game_cover);
             holder.titleView = convertView.findViewById(R.id.game_title);
+            holder.detailView = convertView.findViewById(R.id.game_detail);
             convertView.setTag(holder);
         } else {
             holder = (ViewHolder) convertView.getTag();
@@ -56,6 +57,9 @@ public class GameGridAdapter extends BaseAdapter {
         
         // Set title
         holder.titleView.setText(item.igdbGame != null ? item.igdbGame.name : item.name);
+        if (holder.detailView != null) {
+            holder.detailView.setText(gameCardDetail(item));
+        }
         
         // Set cover
         if (item.coverBitmap != null) {
@@ -70,5 +74,33 @@ public class GameGridAdapter extends BaseAdapter {
     static class ViewHolder {
         ImageView coverView;
         TextView titleView;
+        TextView detailView;
+    }
+
+    private String gameCardDetail(GameLibraryActivity.GameItem item) {
+        if (item.igdbGame != null) {
+            StringBuilder detail = new StringBuilder();
+            if (item.igdbGame.releaseDate != null && !item.igdbGame.releaseDate.isEmpty()) {
+                detail.append(item.igdbGame.releaseDate);
+            }
+            if (item.igdbGame.publisher != null && !item.igdbGame.publisher.isEmpty()) {
+                if (detail.length() > 0) {
+                    detail.append(" | ");
+                }
+                detail.append(item.igdbGame.publisher);
+            }
+            if (detail.length() > 0) {
+                return detail.toString();
+            }
+        }
+
+        if (item.filePath == null || item.filePath.isEmpty()) {
+            return "3DO";
+        }
+        int dot = item.filePath.lastIndexOf('.');
+        if (dot < 0 || dot == item.filePath.length() - 1) {
+            return "3DO";
+        }
+        return item.filePath.substring(dot + 1).toUpperCase();
     }
 }

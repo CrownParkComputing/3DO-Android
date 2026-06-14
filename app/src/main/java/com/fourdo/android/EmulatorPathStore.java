@@ -38,6 +38,11 @@ final class EmulatorPathStore {
         prefs.edit().putString(SettingsActivity.KEY_LAST_GAME_PATH, gamePath).apply();
     }
 
+    static void clearLastGamePath(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit().remove(SettingsActivity.KEY_LAST_GAME_PATH).apply();
+    }
+
     static boolean isValidFilePath(String path) {
         return path != null && !path.isEmpty() && new File(path).isFile();
     }

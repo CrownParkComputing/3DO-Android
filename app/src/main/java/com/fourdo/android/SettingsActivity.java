@@ -12,7 +12,9 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import androidx.appcompat.widget.SwitchCompat;
@@ -22,6 +24,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.util.Locale;
 
 public class SettingsActivity extends AppCompatActivity {
 
@@ -36,6 +39,7 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_TEXTURE_FILTERING = "texture_filtering";
     public static final String KEY_REGION = "region";
     public static final String KEY_BEZEL_ENABLED = "bezel_enabled";
+    public static final String KEY_BEZEL_GITHUB_URL = "bezel_github_url";
     public static final String KEY_DISPLAY_ROTATION = "display_rotation";
     public static final String KEY_VULKAN_DRIVER_PATH = "vulkan_driver_path";
     public static final String KEY_CRT_ENABLED = "crt_shader_enabled";
@@ -80,6 +84,7 @@ public class SettingsActivity extends AppCompatActivity {
     private Button controllerMapperButton;
     private Button clearCacheButton;
     private Button viewLogsButton;
+    private Button downloadBezelsButton;
     private TextView biosPathText;
     private TextView libraryPathText;
     private TextView vulkanDriverPathText;
@@ -109,6 +114,7 @@ public class SettingsActivity extends AppCompatActivity {
         controllerMapperButton = findViewById(R.id.controller_mapper_button);
         clearCacheButton = findViewById(R.id.clear_cache_button);
         viewLogsButton = findViewById(R.id.view_logs_button);
+        downloadBezelsButton = findViewById(R.id.download_bezels_button);
         biosPathText = findViewById(R.id.bios_path_text);
         libraryPathText = findViewById(R.id.library_path_text);
         vulkanDriverPathText = findViewById(R.id.vulkan_driver_path_text);
@@ -194,6 +200,147 @@ public class SettingsActivity extends AppCompatActivity {
                 showLogsDialog();
             }
         });
+
+        if (downloadBezelsButton != null) {
+            downloadBezelsButton.setOnClickListener(v -> showDownloadBezelsDialog());
+        }
+    }
+
+    private void showDownloadBezelsDialog() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(48, 24, 48, 0);
+
+        TextView hint = new TextView(this);
+        hint.setText("Paste a GitHub ZIP/archive URL. PNG bezels will be stored in app storage and matched by game name.");
+        hint.setTextColor(0xFFCCCCCC);
+        layout.addView(hint);
+
+        EditText input = new EditText(this);
+        input.setSingleLine(false);
+        input.setMinLines(2);
+        input.setTextColor(0xFFFFFFFF);
+        input.setText(prefs.getString(KEY_BEZEL_GITHUB_URL, BezelDownloader.DEFAULT_GITHUB_ZIP_URL));
+        layout.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Download Bezels")
+                .setView(layout)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Download", (dialog, which) -> {
+                    String url = input.getText().toString().trim();
+                    if (url.isEmpty()) {
+                        Toast.makeText(this, "GitHub URL is required", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    prefs.edit().putString(KEY_BEZEL_GITHUB_URL, url).apply();
+                    downloadBezelsFromGithub(url);
+                })
+                .show();
+    }
+
+    private void downloadBezelsFromGithub(String url) {
+        if (downloadBezelsButton != null) {
+            downloadBezelsButton.setEnabled(false);
+            downloadBezelsButton.setText("Downloading bezels...");
+        }
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(48, 32, 48, 16);
+
+        TextView status = new TextView(this);
+        status.setText("Starting download...");
+        status.setTextColor(0xFFFFFFFF);
+        status.setTextSize(14.0f);
+        layout.addView(status);
+
+        ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progress.setIndeterminate(true);
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                28);
+        progressParams.setMargins(0, 24, 0, 12);
+        layout.addView(progress, progressParams);
+
+        TextView detail = new TextView(this);
+        detail.setTextColor(0xFFCCCCCC);
+        detail.setTextSize(12.0f);
+        layout.addView(detail);
+
+        AlertDialog progressDialog = new AlertDialog.Builder(this)
+                .setTitle("Downloading Bezels")
+                .setView(layout)
+                .setCancelable(false)
+                .create();
+        progressDialog.show();
+
+        new Thread(() -> {
+            try {
+                BezelDownloader.Result result = BezelDownloader.downloadGithubZip(this, url, (phase, current, total, indeterminate) ->
+                        runOnUiThread(() -> updateBezelDownloadProgress(status, detail, progress, phase, current, total, indeterminate)));
+                runOnUiThread(() -> {
+                    progressDialog.dismiss();
+                    restoreDownloadBezelsButton();
+                    Toast.makeText(
+                            this,
+                            "Downloaded " + result.pngCount + " bezels to " + result.destination.getName(),
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+            } catch (Exception e) {
+                Log.e("Settings", "Bezel download failed", e);
+                runOnUiThread(() -> {
+                    progressDialog.dismiss();
+                    restoreDownloadBezelsButton();
+                    Toast.makeText(this, "Bezel download failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }, "bezel-download").start();
+    }
+
+    private void updateBezelDownloadProgress(TextView status, TextView detail, ProgressBar progress,
+                                             String phase, long current, long total, boolean indeterminate) {
+        status.setText(phase);
+        progress.setIndeterminate(indeterminate);
+        if (!indeterminate && total > 0) {
+            progress.setMax((int) Math.min(total, Integer.MAX_VALUE));
+            progress.setProgress((int) Math.min(current, Integer.MAX_VALUE));
+            detail.setText(formatProgressValue(current, total));
+        } else if (current > 0) {
+            detail.setText(formatBytes(current));
+        } else {
+            detail.setText("Working...");
+        }
+    }
+
+    private String formatProgressValue(long current, long total) {
+        if (total <= 0) {
+            return formatBytes(current);
+        }
+        if (total < 2048) {
+            return current + " / " + total;
+        }
+        return formatBytes(current) + " / " + formatBytes(total);
+    }
+
+    private String formatBytes(long bytes) {
+        if (bytes >= 1024L * 1024L) {
+            return String.format(Locale.US, "%.1f MB", bytes / (1024f * 1024f));
+        }
+        if (bytes >= 1024L) {
+            return String.format(Locale.US, "%.1f KB", bytes / 1024f);
+        }
+        return bytes + " B";
+    }
+
+    private void restoreDownloadBezelsButton() {
+        if (downloadBezelsButton != null) {
+            downloadBezelsButton.setEnabled(true);
+            downloadBezelsButton.setText("Download Bezels from GitHub");
+        }
     }
     
     private void showLogsDialog() {
