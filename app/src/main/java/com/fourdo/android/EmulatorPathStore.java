@@ -5,49 +5,49 @@ import android.content.SharedPreferences;
 
 import java.io.File;
 
-final class EmulatorPathStore {
+public final class EmulatorPathStore {
 
     private EmulatorPathStore() {
     }
 
-    static String getSavedBiosPath(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getString(SettingsActivity.KEY_BIOS_PATH, "");
+    public static String getSavedBiosPath(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getString(MainActivity.KEY_BIOS_PATH, "");
     }
 
-    static void saveBiosPath(Context context, String biosPath) {
-        SharedPreferences prefs = context.getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putString(SettingsActivity.KEY_BIOS_PATH, biosPath).apply();
+    public static void saveBiosPath(Context context, String biosPath) {
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit().putString(MainActivity.KEY_BIOS_PATH, biosPath).apply();
     }
 
-    static String getSavedLastGamePath(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getString(SettingsActivity.KEY_LAST_GAME_PATH, "");
+    public static String getSavedLastGamePath(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getString(MainActivity.KEY_LAST_GAME_PATH, "");
     }
 
-    static String getSavedLibraryFolder(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getString(SettingsActivity.KEY_LIBRARY_FOLDER, "");
+    public static String getSavedLibraryFolder(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getString(MainActivity.KEY_LIBRARY_FOLDER, "");
     }
 
-    static void saveLastGamePath(Context context, String gamePath) {
+    public static void saveLastGamePath(Context context, String gamePath) {
         if (gamePath == null || gamePath.isEmpty()) {
             return;
         }
-        SharedPreferences prefs = context.getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putString(SettingsActivity.KEY_LAST_GAME_PATH, gamePath).apply();
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit().putString(MainActivity.KEY_LAST_GAME_PATH, gamePath).apply();
     }
 
-    static void clearLastGamePath(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().remove(SettingsActivity.KEY_LAST_GAME_PATH).apply();
+    public static void clearLastGamePath(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit().remove(MainActivity.KEY_LAST_GAME_PATH).apply();
     }
 
-    static boolean isValidFilePath(String path) {
+    public static boolean isValidFilePath(String path) {
         return path != null && !path.isEmpty() && new File(path).isFile();
     }
 
-    static boolean isSupportedCdPath(String path) {
+    public static boolean isSupportedCdPath(String path) {
         if (!isValidFilePath(path)) {
             return false;
         }
@@ -55,7 +55,7 @@ final class EmulatorPathStore {
         return lower.endsWith(".cue") || lower.endsWith(".iso") || lower.endsWith(".chd") || lower.endsWith(".bin");
     }
 
-    static boolean isValidDirectoryPath(String path) {
+    public static boolean isValidDirectoryPath(String path) {
         return path != null && !path.isEmpty() && new File(path).isDirectory();
     }
 }

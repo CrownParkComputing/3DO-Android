@@ -1,5 +1,5 @@
 /**
- * 4DO Unified Renderer
+ * 3DO Opera Unified Renderer
  *
  * Vulkan rendering bridge for the 3DO emulator.
  *
@@ -26,7 +26,7 @@
 #include "renderers/vulkan_renderer.h"
 #include "renderers/gl_renderer.h"
 
-#define LOG_TAG "4DO-Renderer"
+#define LOG_TAG "3DOOpera-Renderer"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
@@ -226,7 +226,7 @@ extern "C" void get_screen_size(int* width, int* height) {
 // JNI: EmulatorActivity.initRenderer(width, height)
 // -----------------------------------------------------------------------
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_fourdo_android_EmulatorActivity_initRenderer(JNIEnv* /*env*/, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_initRenderer(JNIEnv* /*env*/, jobject /*thiz*/,
                                                        jint width, jint height) {
     LOGD("initRenderer %dx%d", width, height);
     std::lock_guard<std::mutex> lock(g_render_mutex);
@@ -242,7 +242,7 @@ Java_com_fourdo_android_EmulatorActivity_initRenderer(JNIEnv* /*env*/, jobject /
 // JNI: EmulatorActivity.setSurface(surface)
 // -----------------------------------------------------------------------
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setSurface(JNIEnv* env, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setSurface(JNIEnv* env, jobject /*thiz*/,
                                                      jobject surface) {
     std::lock_guard<std::mutex> lock(g_render_mutex);
 
@@ -276,7 +276,7 @@ Java_com_fourdo_android_EmulatorActivity_setSurface(JNIEnv* env, jobject /*thiz*
 // JNI: EmulatorActivity.cleanupRenderer()
 // -----------------------------------------------------------------------
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_cleanupRenderer(JNIEnv* /*env*/, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_cleanupRenderer(JNIEnv* /*env*/, jobject /*thiz*/) {
     LOGD("cleanupRenderer");
     std::lock_guard<std::mutex> lock(g_render_mutex);
 
@@ -296,7 +296,7 @@ Java_com_fourdo_android_EmulatorActivity_cleanupRenderer(JNIEnv* /*env*/, jobjec
 //   0 = AUTO, 1 = OPENGL_ES, 2 = VULKAN, 3 = SOFTWARE
 // -----------------------------------------------------------------------
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setRendererType(JNIEnv* /*env*/, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setRendererType(JNIEnv* /*env*/, jobject /*thiz*/,
                                                           jint type) {
     LOGD("setRendererType: %d", type);
     std::lock_guard<std::mutex> lock(g_render_mutex);
@@ -308,7 +308,7 @@ Java_com_fourdo_android_EmulatorActivity_setRendererType(JNIEnv* /*env*/, jobjec
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setVulkanDriverPath(JNIEnv* env, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setVulkanDriverPath(JNIEnv* env, jobject /*thiz*/,
                                                               jstring path) {
     std::lock_guard<std::mutex> lock(g_render_mutex);
     if (path == nullptr) {
@@ -325,7 +325,7 @@ Java_com_fourdo_android_EmulatorActivity_setVulkanDriverPath(JNIEnv* env, jobjec
 // JNI: EmulatorActivity.setFiltering(boolean nearest)
 // -----------------------------------------------------------------------
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setFiltering(JNIEnv* /*env*/, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setFiltering(JNIEnv* /*env*/, jobject /*thiz*/,
                                                        jboolean nearest) {
     LOGD("setFiltering: %d", (int)nearest);
     std::lock_guard<std::mutex> lock(g_render_mutex);
@@ -340,7 +340,7 @@ Java_com_fourdo_android_EmulatorActivity_setFiltering(JNIEnv* /*env*/, jobject /
 // JNI: EmulatorActivity.getRendererName()
 // -----------------------------------------------------------------------
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_fourdo_android_EmulatorActivity_getRendererName(JNIEnv* env, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_getRendererName(JNIEnv* env, jobject /*thiz*/) {
     std::lock_guard<std::mutex> lock(g_render_mutex);
 
     const char* name = g_renderer ? g_renderer->getName() : "None";
@@ -351,7 +351,7 @@ Java_com_fourdo_android_EmulatorActivity_getRendererName(JNIEnv* env, jobject /*
 // JNI: EmulatorActivity.setAspectRatio(boolean wide)
 // -----------------------------------------------------------------------
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setAspectRatio(JNIEnv* /*env*/, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setAspectRatio(JNIEnv* /*env*/, jobject /*thiz*/,
                                                          jboolean wide) {
     LOGD("setAspectRatio: wide=%d", (int)wide);
     std::lock_guard<std::mutex> lock(g_render_mutex);
@@ -366,12 +366,12 @@ Java_com_fourdo_android_EmulatorActivity_setAspectRatio(JNIEnv* /*env*/, jobject
 // JNI: EmulatorActivity.getAspectRatio()
 // -----------------------------------------------------------------------
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_fourdo_android_EmulatorActivity_getAspectRatio(JNIEnv* /*env*/, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_getAspectRatio(JNIEnv* /*env*/, jobject /*thiz*/) {
     return g_aspect_wide ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setCrtShaderEnabled(JNIEnv* /*env*/, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setCrtShaderEnabled(JNIEnv* /*env*/, jobject /*thiz*/,
                                                               jboolean enabled) {
     LOGD("setCrtShaderEnabled: %d", (int)enabled);
     std::lock_guard<std::mutex> lock(g_render_mutex);
@@ -383,12 +383,12 @@ Java_com_fourdo_android_EmulatorActivity_setCrtShaderEnabled(JNIEnv* /*env*/, jo
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_fourdo_android_EmulatorActivity_getCrtShaderEnabled(JNIEnv* /*env*/, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_getCrtShaderEnabled(JNIEnv* /*env*/, jobject /*thiz*/) {
     return g_crt_enabled ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setResolutionScale(JNIEnv* /*env*/, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setResolutionScale(JNIEnv* /*env*/, jobject /*thiz*/,
                                                              jint scale) {
     std::lock_guard<std::mutex> lock(g_render_mutex);
 
@@ -404,12 +404,12 @@ Java_com_fourdo_android_EmulatorActivity_setResolutionScale(JNIEnv* /*env*/, job
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_fourdo_android_EmulatorActivity_getResolutionScale(JNIEnv* /*env*/, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_getResolutionScale(JNIEnv* /*env*/, jobject /*thiz*/) {
     return static_cast<jint>(g_resolution_scale);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setAntiAliasingMode(JNIEnv* /*env*/, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setAntiAliasingMode(JNIEnv* /*env*/, jobject /*thiz*/,
                                                               jint mode) {
     std::lock_guard<std::mutex> lock(g_render_mutex);
     int clampedMode = mode;
@@ -424,12 +424,12 @@ Java_com_fourdo_android_EmulatorActivity_setAntiAliasingMode(JNIEnv* /*env*/, jo
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_fourdo_android_EmulatorActivity_getAntiAliasingMode(JNIEnv* /*env*/, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_getAntiAliasingMode(JNIEnv* /*env*/, jobject /*thiz*/) {
     return static_cast<jint>(g_aa_mode);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setOutputResolutionPreset(JNIEnv* /*env*/, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setOutputResolutionPreset(JNIEnv* /*env*/, jobject /*thiz*/,
                                                                     jint targetHeight) {
     std::lock_guard<std::mutex> lock(g_render_mutex);
 
@@ -449,7 +449,7 @@ Java_com_fourdo_android_EmulatorActivity_setOutputResolutionPreset(JNIEnv* /*env
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setFlipVertical(JNIEnv* /*env*/, jobject /*thiz*/, jboolean flip) {
+Java_com_fourdo_android_MainActivity_setFlipVertical(JNIEnv* /*env*/, jobject /*thiz*/, jboolean flip) {
     std::lock_guard<std::mutex> lock(g_render_mutex);
     g_flip_vertical = (flip == JNI_TRUE);
     // For backwards compatibility, set both axes when setFlipVertical is called
@@ -461,7 +461,7 @@ Java_com_fourdo_android_EmulatorActivity_setFlipVertical(JNIEnv* /*env*/, jobjec
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setFlipX(JNIEnv* /*env*/, jobject /*thiz*/, jboolean flip) {
+Java_com_fourdo_android_MainActivity_setFlipX(JNIEnv* /*env*/, jobject /*thiz*/, jboolean flip) {
     std::lock_guard<std::mutex> lock(g_render_mutex);
     g_flip_x = (flip == JNI_TRUE);
     if (g_renderer) {
@@ -470,7 +470,7 @@ Java_com_fourdo_android_EmulatorActivity_setFlipX(JNIEnv* /*env*/, jobject /*thi
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setFlipY(JNIEnv* /*env*/, jobject /*thiz*/, jboolean flip) {
+Java_com_fourdo_android_MainActivity_setFlipY(JNIEnv* /*env*/, jobject /*thiz*/, jboolean flip) {
     std::lock_guard<std::mutex> lock(g_render_mutex);
     g_flip_y = (flip == JNI_TRUE);
     if (g_renderer) {
@@ -479,7 +479,7 @@ Java_com_fourdo_android_EmulatorActivity_setFlipY(JNIEnv* /*env*/, jobject /*thi
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setRotation(JNIEnv* /*env*/, jobject /*thiz*/, jint degrees) {
+Java_com_fourdo_android_MainActivity_setRotation(JNIEnv* /*env*/, jobject /*thiz*/, jint degrees) {
     int clamped = 0;
     switch (degrees) {
         case 0:   clamped = 0;   break;
@@ -497,17 +497,17 @@ Java_com_fourdo_android_EmulatorActivity_setRotation(JNIEnv* /*env*/, jobject /*
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_fourdo_android_EmulatorActivity_getOutputResolutionPreset(JNIEnv* /*env*/, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_getOutputResolutionPreset(JNIEnv* /*env*/, jobject /*thiz*/) {
     return static_cast<jint>(g_output_preset_height);
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_fourdo_android_EmulatorActivity_consumeRenderedFrames(JNIEnv* /*env*/, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_consumeRenderedFrames(JNIEnv* /*env*/, jobject /*thiz*/) {
     return static_cast<jint>(g_rendered_frames.exchange(0, std::memory_order_relaxed));
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_fourdo_android_EmulatorActivity_getRenderTargetInfo(JNIEnv* env, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_getRenderTargetInfo(JNIEnv* env, jobject /*thiz*/) {
     std::lock_guard<std::mutex> lock(g_render_mutex);
     std::string info = format_render_target_info();
     return env->NewStringUTF(info.c_str());

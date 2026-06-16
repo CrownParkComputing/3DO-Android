@@ -144,7 +144,7 @@ public final class ControllerMappingManager {
     }
 
     private static SharedPreferences getPrefs(Context context) {
-        return context.getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        return context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
     }
 
     private static int defaultKeyCodeForButton(int button) {

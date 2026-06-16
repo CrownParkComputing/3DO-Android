@@ -1,6 +1,7 @@
 package com.fourdo.android;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Handler;
@@ -38,13 +39,21 @@ public class IgdbService {
     
     private static IgdbService instance;
     private String accessToken;
+    private long tokenExpiryMs = 0;
     private Context context;
     private ExecutorService executor;
     private Handler mainHandler;
-    
+
+    private static final String PREFS = "igdb_prefs";
+    // Re-query a "not found" game only after this long, so obscure/homebrew
+    // titles that IGDB doesn't have don't hit the API on every launch/scan.
+    private static final long MISS_TTL_MS = 14L * 24 * 60 * 60 * 1000;
+
     // In-memory cache
     private Map<String, IgdbGame> gameCache = new HashMap<>();
     private Map<Integer, Bitmap> coverCache = new HashMap<>();
+    // Negative cache: normalized query -> epoch millis when the miss was recorded.
+    private final Map<String, Long> missCache = new HashMap<>();
     
     public static class IgdbGame {
         public int id;
@@ -78,7 +87,47 @@ public class IgdbService {
         this.context = context.getApplicationContext();
         this.executor = Executors.newFixedThreadPool(4);
         this.mainHandler = new Handler(Looper.getMainLooper());
+        loadTokenFromPrefs();
         loadGameCacheFromDisk();
+    }
+
+    /**
+     * Durable cache directory. Unlike getCacheDir(), getFilesDir() is not
+     * auto-evicted by the OS, so cached covers/data survive across launches.
+     */
+    private File igdbDir() {
+        File dir = new File(context.getFilesDir(), "igdb");
+        if (!dir.exists() && !dir.mkdirs()) {
+            Log.w(TAG, "Failed to create igdb cache dir");
+        }
+        return dir;
+    }
+
+    private File coversDir() {
+        return new File(igdbDir(), "covers");
+    }
+
+    // ---- Access-token persistence (avoids re-authenticating every launch) ----
+
+    private void loadTokenFromPrefs() {
+        SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        accessToken = p.getString("token", null);
+        tokenExpiryMs = p.getLong("token_expiry", 0);
+    }
+
+    private void storeToken(String token, long expiresInSec) {
+        accessToken = token;
+        // Refresh 5 minutes early to avoid using a token that expires mid-request.
+        tokenExpiryMs = System.currentTimeMillis() + Math.max(0, expiresInSec - 300) * 1000L;
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putString("token", token)
+                .putLong("token_expiry", tokenExpiryMs)
+                .apply();
+    }
+
+    private boolean tokenValid() {
+        return accessToken != null && !accessToken.isEmpty()
+                && System.currentTimeMillis() < tokenExpiryMs;
     }
     
     public static synchronized IgdbService getInstance(Context context) {
@@ -138,7 +187,7 @@ public class IgdbService {
     }
     
     private File getGameCacheFile() {
-        return new File(context.getCacheDir(), "igdb_game_cache.json");
+        return new File(igdbDir(), "igdb_game_cache.json");
     }
     
     private void loadGameCacheFromDisk() {
@@ -186,7 +235,22 @@ public class IgdbService {
                 }
             }
 
-            Log.d(TAG, "Loaded " + gameCache.size() + " IGDB cache keys");
+            JSONObject misses = root.optJSONObject("misses");
+            if (misses != null) {
+                long now = System.currentTimeMillis();
+                synchronized (missCache) {
+                    for (java.util.Iterator<String> it = misses.keys(); it.hasNext(); ) {
+                        String key = it.next();
+                        long ts = misses.optLong(key, 0);
+                        if (ts > 0 && now - ts < MISS_TTL_MS) {
+                            missCache.put(key, ts);
+                        }
+                    }
+                }
+            }
+
+            Log.d(TAG, "Loaded " + gameCache.size() + " IGDB cache keys, "
+                    + missCache.size() + " negative entries");
         } catch (Exception e) {
             Log.e(TAG, "Failed to load game cache: " + e.getMessage());
         }
@@ -208,9 +272,22 @@ public class IgdbService {
                     }
                 }
                 
+                JSONObject misses = new JSONObject();
+                synchronized (missCache) {
+                    long now = System.currentTimeMillis();
+                    for (Map.Entry<String, Long> miss : missCache.entrySet()) {
+                        // Drop expired misses on save so the file doesn't grow forever.
+                        if (miss.getKey() != null && miss.getValue() != null
+                                && now - miss.getValue() < MISS_TTL_MS) {
+                            misses.put(miss.getKey(), miss.getValue());
+                        }
+                    }
+                }
+
                 JSONObject root = new JSONObject();
                 root.put("entries", entries);
-                
+                root.put("misses", misses);
+
                 File cacheFile = getGameCacheFile();
                 FileOutputStream fos = new FileOutputStream(cacheFile);
                 fos.write(root.toString().getBytes(StandardCharsets.UTF_8));
@@ -297,8 +374,8 @@ public class IgdbService {
                 is.close();
                 
                 JSONObject json = new JSONObject(response);
-                accessToken = json.getString("access_token");
-                
+                storeToken(json.getString("access_token"), json.optLong("expires_in", 0));
+
                 mainHandler.post(() -> {
                     if (accessToken != null && !accessToken.isEmpty()) {
                         if (onSuccess != null) onSuccess.run();
@@ -363,6 +440,16 @@ public class IgdbService {
                     return;
                 }
 
+                // Negative cache: skip the API for recent "no match" results.
+                synchronized (missCache) {
+                    Long missAt = missCache.get(cacheKey);
+                    if (missAt != null && System.currentTimeMillis() - missAt < MISS_TTL_MS) {
+                        Log.d(TAG, "Negative-cache hit for: " + safeQuery);
+                        mainHandler.post(() -> callback.onGamesLoaded(new ArrayList<>()));
+                        return;
+                    }
+                }
+
                 ensureAccessToken();
                 String escapedQuery = escapeIgdbSearchText(safeQuery);
 
@@ -385,6 +472,13 @@ public class IgdbService {
                         changed |= putCacheEntryLocked(cacheKey, games.get(0));
                     }
                 }
+                if (games.isEmpty()) {
+                    // Remember the miss so we don't re-query this title every scan.
+                    synchronized (missCache) {
+                        missCache.put(cacheKey, System.currentTimeMillis());
+                    }
+                    changed = true;
+                }
                 if (changed) {
                     saveGameCacheToDisk();
                 }
@@ -399,7 +493,7 @@ public class IgdbService {
     }
 
     private void ensureAccessToken() throws Exception {
-        if (accessToken != null && !accessToken.isEmpty()) {
+        if (tokenValid()) {
             return;
         }
 
@@ -418,7 +512,7 @@ public class IgdbService {
         }
 
         JSONObject authJson = new JSONObject(readStream(authConn.getInputStream()));
-        accessToken = authJson.getString("access_token");
+        storeToken(authJson.getString("access_token"), authJson.optLong("expires_in", 0));
         authConn.disconnect();
     }
 
@@ -476,8 +570,8 @@ public class IgdbService {
         
         executor.execute(() -> {
             try {
-                // Check disk cache first
-                File cacheDir = new File(context.getCacheDir(), "covers");
+                // Check disk cache first (durable location, not auto-evicted)
+                File cacheDir = coversDir();
                 if (!cacheDir.exists() && !cacheDir.mkdirs()) {
                     Log.w(TAG, "Failed to create covers cache directory");
                 }
@@ -709,14 +803,17 @@ public class IgdbService {
     public void clearCache() {
         gameCache.clear();
         coverCache.clear();
-        
+        synchronized (missCache) {
+            missCache.clear();
+        }
+
         executor.execute(() -> {
             // Delete game cache file
             File gameCacheFile = getGameCacheFile();
             if (gameCacheFile.exists()) gameCacheFile.delete();
-            
+
             // Delete cover cache files
-            File coverDir = new File(context.getCacheDir(), "covers");
+            File coverDir = coversDir();
             if (coverDir.exists() && coverDir.isDirectory()) {
                 File[] files = coverDir.listFiles();
                 if (files != null) {

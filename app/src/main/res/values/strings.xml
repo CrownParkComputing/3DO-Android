@@ -48,8 +48,8 @@
     
     <!-- Welcome Step -->
     <string name="setup_welcome_title">Welcome to 3DO Opera!</string>
-    <string name="setup_welcome_text">This wizard will help you set up the 3DO emulator.\n\nYou will need:</string>
-    <string name="setup_welcome_steps">1. A 3DO BIOS file (.bin or .rom)\n2. A game disc image to play\n\nThe parent folders will be auto-detected for future use.</string>
+    <string name="setup_welcome_text">This wizard will help you set up the 3DO emulator.\n\nPick one writable app storage folder, then 3DO Opera will create its bios, games, appdata, and bezels folders under it.</string>
+    <string name="setup_welcome_steps">1. A 3DO BIOS file (.bin or .rom)\n2. An app storage folder for imported data\n3. A games folder to scan and import</string>
     <string name="supported_formats">Supported: ZIP, 7Z, RAR, CUE, ISO, CHD, BIN</string>
     <string name="extract_archive">Extract Archive</string>
     <string name="extracting">Extracting…</string>
@@ -66,9 +66,17 @@
     <string name="setup_bios_required">Please select a BIOS file to continue</string>
     <string name="setup_invalid_bios">Invalid BIOS file. Please select a .bin or .rom file.</string>
     
+    <!-- App Storage Step -->
+    <string name="setup_app_title">Step 2: Select App Storage Folder</string>
+    <string name="setup_app_explanation">Choose the folder where 3DO Opera will create its bios, games, appdata, and bezels folders.\n\nPick a writable folder on internal storage or your SD card.</string>
+    <string name="setup_select_app">Select App Folder</string>
+    <string name="setup_app_not_selected">No app folder selected</string>
+    <string name="setup_app_selected">App storage: %1$s</string>
+    <string name="setup_app_required">Please select an app folder to continue</string>
+
     <!-- Game Step -->
-    <string name="setup_game_title">Step 2: Set Games Library Folder</string>
-    <string name="setup_game_explanation">Select the folder where your 3DO disc images (.cue, .iso, .chd) are stored.\n\nAll games in that folder will appear in your library.</string>
+    <string name="setup_game_title">Step 3: Set Games Library Folder</string>
+    <string name="setup_game_explanation">Select the folder where your 3DO disc images (.cue, .iso, .chd) are stored.\n\nAll games in that folder will be copied into app storage and appear in your library.</string>
     <string name="setup_select_game">Select Folder</string>
     <string name="setup_game_not_selected">No folder selected</string>
     <string name="setup_game_selected">Folder: %1$s</string>

@@ -1,5 +1,5 @@
 /**
- * 4DO Native Core - Main Emulator Coordinator
+ * 3DO Opera Native Core - Main Emulator Coordinator
  * Integrates all native subsystems into a unified emulation engine.
  *
  * This replaces the previous approach of calling legacy C backend functions

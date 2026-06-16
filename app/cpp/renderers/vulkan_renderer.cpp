@@ -93,7 +93,10 @@ void VulkanRenderer::cleanup() {
     if (m_descriptorSetLayout) vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
     if (m_imageAvailable) vkDestroySemaphore(m_device, m_imageAvailable, nullptr);
     if (m_renderFinished) vkDestroySemaphore(m_device, m_renderFinished, nullptr);
-    if (m_inFlightFence) vkDestroyFence(m_device, m_inFlightFence, nullptr);
+    for (VkFence fence : m_inFlightFences) {
+        if (fence) vkDestroyFence(m_device, fence, nullptr);
+    }
+    m_inFlightFences.clear();
     if (m_commandPool) vkDestroyCommandPool(m_device, m_commandPool, nullptr);
     if (m_device) vkDestroyDevice(m_device, nullptr);
     if (m_surface) vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
@@ -118,7 +121,6 @@ void VulkanRenderer::cleanup() {
     m_descriptorSetLayout = VK_NULL_HANDLE;
     m_imageAvailable = VK_NULL_HANDLE;
     m_renderFinished = VK_NULL_HANDLE;
-    m_inFlightFence = VK_NULL_HANDLE;
     m_commandPool = VK_NULL_HANDLE;
     m_stagingSize = 0;
     m_initialized = false;
@@ -166,9 +168,9 @@ bool VulkanRenderer::createInstance() {
     }
 
     VkApplicationInfo appInfo{VK_STRUCTURE_TYPE_APPLICATION_INFO};
-    appInfo.pApplicationName = "4DO";
+    appInfo.pApplicationName = "3DO Opera";
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "4DO";
+    appInfo.pEngineName = "3DO Opera";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_0;
     const char* extensions[] = {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME};
@@ -481,22 +483,48 @@ bool VulkanRenderer::createDescriptorPoolAndSet() {
 
 bool VulkanRenderer::createSyncObjects() {
     VkSemaphoreCreateInfo sem{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+    if (vkCreateSemaphore(m_device, &sem, nullptr, &m_imageAvailable) != VK_SUCCESS) return false;
+    if (vkCreateSemaphore(m_device, &sem, nullptr, &m_renderFinished) != VK_SUCCESS) return false;
+    // One fence per swapchain image. Created SIGNALED so the first frame
+    // doesn't deadlock on the wait. The renderFrame() loop tracks its own
+    // current-in-flight image via vkAcquireNextImageKHR's imageIndex.
     VkFenceCreateInfo fence{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
     fence.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    return vkCreateSemaphore(m_device, &sem, nullptr, &m_imageAvailable) == VK_SUCCESS
-        && vkCreateSemaphore(m_device, &sem, nullptr, &m_renderFinished) == VK_SUCCESS
-        && vkCreateFence(m_device, &fence, nullptr, &m_inFlightFence) == VK_SUCCESS;
+    m_inFlightFences.assign(m_swapchainImages.size(), VK_NULL_HANDLE);
+    for (size_t i = 0; i < m_inFlightFences.size(); ++i) {
+        if (vkCreateFence(m_device, &fence, nullptr, &m_inFlightFences[i]) != VK_SUCCESS) return false;
+    }
+    return true;
 }
 
 void VulkanRenderer::renderFrame(const void* pixels, int width, int height) {
     if (!m_initialized || !pixels || width != m_frameWidth || height != m_frameHeight) return;
-    vkWaitForFences(m_device, 1, &m_inFlightFence, VK_TRUE, UINT64_MAX);
-    vkResetFences(m_device, 1, &m_inFlightFence);
-    uploadFrame(pixels, width, height);
+    // Acquire the next swapchain image. With MAILBOX present mode (the
+    // preferred mode selected in choosePresentMode), this does NOT block
+    // on vblank - the CPU can render ahead while the GPU catches up.
     uint32_t imageIndex = 0;
-    VkResult acquire = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailable, VK_NULL_HANDLE, &imageIndex);
+    // Use a short timeout (1ms) to avoid blocking the emulator thread if
+    // the GPU is significantly behind. This prevents frame pacing dead time.
+    VkResult acquire = vkAcquireNextImageKHR(m_device, m_swapchain, 1000000ULL,
+                                            m_imageAvailable, VK_NULL_HANDLE, &imageIndex);
     if (acquire == VK_ERROR_OUT_OF_DATE_KHR) { recreateSwapchain(); return; }
+    if (acquire == VK_TIMEOUT) {
+        // No free image available yet - skip this frame to maintain emulation pace
+        return;
+    }
     if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR) return;
+
+    VkFence imageFence = m_inFlightFences[imageIndex];
+    // Check if this image is still in use. With MAILBOX present mode, the GPU
+    // may lag behind; we skip the frame rather than stall the emulator thread.
+    if (vkWaitForFences(m_device, 1, &imageFence, VK_TRUE, 0) == VK_TIMEOUT) {
+        // Image still in flight - skip this frame to maintain emulation pace.
+        // Do NOT reset the fence since we're not using it.
+        return;
+    }
+    vkResetFences(m_device, 1, &imageFence);
+
+    uploadFrame(pixels, width, height);
     vkResetCommandBuffer(m_commandBuffers[imageIndex], 0);
     recordCommandBuffer(m_commandBuffers[imageIndex], imageIndex);
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -504,7 +532,7 @@ void VulkanRenderer::renderFrame(const void* pixels, int width, int height) {
     submit.waitSemaphoreCount = 1; submit.pWaitSemaphores = &m_imageAvailable; submit.pWaitDstStageMask = &waitStage;
     submit.commandBufferCount = 1; submit.pCommandBuffers = &m_commandBuffers[imageIndex];
     submit.signalSemaphoreCount = 1; submit.pSignalSemaphores = &m_renderFinished;
-    if (vkQueueSubmit(m_graphicsQueue, 1, &submit, m_inFlightFence) != VK_SUCCESS) return;
+    if (vkQueueSubmit(m_graphicsQueue, 1, &submit, imageFence) != VK_SUCCESS) return;
     VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
     present.waitSemaphoreCount = 1; present.pWaitSemaphores = &m_renderFinished;
     present.swapchainCount = 1; present.pSwapchains = &m_swapchain; present.pImageIndices = &imageIndex;
@@ -712,7 +740,15 @@ VkShaderModule VulkanRenderer::createShaderModule(const uint32_t* code, size_t w
 bool VulkanRenderer::recreateSwapchain() {
     vkDeviceWaitIdle(m_device);
     cleanupSwapchain();
-    return createSwapchain() && createImageViews() && createRenderPass() && createPipeline() && createFramebuffers();
+    // The new swapchain may have a different image count, so the per-image
+    // fence array must be re-sized. Destroy the old fences first (they were
+    // still valid for the old swapchain, not the new one).
+    for (VkFence fence : m_inFlightFences) {
+        if (fence) vkDestroyFence(m_device, fence, nullptr);
+    }
+    m_inFlightFences.clear();
+    return createSwapchain() && createImageViews() && createRenderPass() && createPipeline() && createFramebuffers()
+        && createSyncObjects();
 }
 
 void VulkanRenderer::setFiltering(bool nearest) {

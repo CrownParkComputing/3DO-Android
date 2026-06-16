@@ -87,7 +87,7 @@ jobs:
     - name: Upload AAB artifact
       uses: actions/upload-artifact@v4
       with:
-        name: 4do-signed-play-store-aab
+        name: 3do-opera-signed-play-store-aab
         path: app/build/outputs/bundle/release/app-release.aab
         if-no-files-found: error
         retention-days: 7

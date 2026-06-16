@@ -3,6 +3,7 @@ package com.fourdo.android;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.provider.OpenableColumns;
 
@@ -14,18 +15,24 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Locale;
 
-final class SafFileImporter {
+public final class SafFileImporter {
 
+    // Tidy external-card layout:  <root>/{ bios, appdata, games, bezels }
+    //   bios    — 3DO BIOS/font roms
+    //   games   — imported game discs (was "library")
+    //   appdata — runtime data: drivers, nvram, save states  (was scattered)
+    //   bezels  — bezel overlays (managed by BezelResolver)
     private static final String BIOS_DIR_NAME = "bios";
-    private static final String LIBRARY_DIR_NAME = "library";
-    private static final String DRIVER_DIR_NAME = "drivers";
+    private static final String LIBRARY_DIR_NAME = "games";
+    private static final String APPDATA_DIR_NAME = "appdata";
+    private static final String DRIVER_DIR_NAME = "drivers";   // under appdata/
 
     private SafFileImporter() {
     }
 
-    static final class ImportResult {
-        final String path;
-        final int importedFileCount;
+    public static final class ImportResult {
+        public final String path;
+        public final int importedFileCount;
 
         ImportResult(String path, int importedFileCount) {
             this.path = path;
@@ -33,7 +40,7 @@ final class SafFileImporter {
         }
     }
 
-    static Intent createOpenDocumentIntent() {
+    public static Intent createOpenDocumentIntent() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
@@ -42,7 +49,7 @@ final class SafFileImporter {
         return intent;
     }
 
-    static Intent createOpenDocumentTreeIntent() {
+    public static Intent createOpenDocumentTreeIntent() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
@@ -52,12 +59,23 @@ final class SafFileImporter {
         return intent;
     }
 
-    static String importVulkanDriver(Context context, Uri uri) throws IOException {
+    public static String importVulkanDriver(Context context, Uri uri) throws IOException {
         takePersistableReadPermission(context, uri);
 
         String displayName = getDisplayName(context, uri);
         String lowerName = displayName.toLowerCase();
-        
+
+        // The renderer's dlopen() runs in the app's classloader namespace, which
+        // can only load .so files from inside the app's permitted_paths
+        // (/data/data/<pkg>/, plus a few system locations). External storage and
+        // SAF tree paths are NOT in that list, so an .so placed under
+        // getExternalFilesDir() or a user-picked SD card path will fail with
+        // "library ... is not accessible for the namespace classloader-namespace".
+        //
+        // Copy into context.getFilesDir()/drivers/ (always permitted) and return
+        // THAT path — that's what the renderer should dlopen. The original .so
+        // stays in the user's managed folder for reference; we don't need to
+        // delete it.
         File driverDir = new File(context.getFilesDir(), DRIVER_DIR_NAME);
         if (!driverDir.exists() && !driverDir.mkdirs()) {
             throw new IOException("Failed to create drivers directory");
@@ -72,7 +90,7 @@ final class SafFileImporter {
             android.util.Log.d("SafFileImporter", "Attempting to extract driver from ZIP: " + displayName);
             try (InputStream is = context.getContentResolver().openInputStream(uri);
                  java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(is)) {
-                
+
                 java.util.zip.ZipEntry entry;
                 while ((entry = zis.getNextEntry()) != null) {
                     android.util.Log.d("SafFileImporter", "ZIP entry: " + entry.getName());
@@ -104,7 +122,7 @@ final class SafFileImporter {
         }
     }
 
-    static String importBios(Context context, Uri uri) throws IOException {
+    public static String importBios(Context context, Uri uri) throws IOException {
         takePersistableReadPermission(context, uri);
 
         String displayName = getDisplayName(context, uri);
@@ -112,7 +130,7 @@ final class SafFileImporter {
             throw new IOException("Selected file is not a BIOS image");
         }
 
-        File biosDir = new File(context.getFilesDir(), BIOS_DIR_NAME);
+        File biosDir = getManagedBiosDirectory(context);
         if (!biosDir.exists() && !biosDir.mkdirs()) {
             throw new IOException("Failed to create BIOS directory");
         }
@@ -140,7 +158,7 @@ final class SafFileImporter {
         return destFile.getAbsolutePath();
     }
 
-    static ImportResult importLibraryTree(Context context, Uri uri) throws IOException {
+    public static ImportResult importLibraryTree(Context context, Uri uri) throws IOException {
         takePersistableReadPermission(context, uri);
 
         DocumentFile tree = DocumentFile.fromTreeUri(context, uri);
@@ -167,17 +185,38 @@ final class SafFileImporter {
         return new ImportResult(destinationDir.getAbsolutePath(), importedCount);
     }
 
-    static File getManagedLibraryDirectory(Context context) {
+    public static File getManagedLibraryDirectory(Context context) {
+        return new File(getManagedAppRoot(context), LIBRARY_DIR_NAME);
+    }
+
+    static File getManagedBiosDirectory(Context context) {
+        return new File(getManagedAppRoot(context), BIOS_DIR_NAME);
+    }
+
+    static File getManagedAppDataDirectory(Context context) {
+        return new File(getManagedAppRoot(context), APPDATA_DIR_NAME);
+    }
+
+    static File getManagedDriverDirectory(Context context) {
+        return new File(getManagedAppDataDirectory(context), DRIVER_DIR_NAME);
+    }
+
+    static File getManagedAppRoot(Context context) {
         SharedStorageRoot sharedStorageRoot = getSharedStorageRoot(context);
-        return new File(sharedStorageRoot.root, LIBRARY_DIR_NAME);
+        return sharedStorageRoot.root;
     }
 
     private static File getManagedLibraryRoot(Context context) {
-        return getManagedLibraryDirectory(context);
+        return getManagedAppRoot(context);
     }
 
     private static SharedStorageRoot getSharedStorageRoot(Context context) {
-        File root = context.getExternalFilesDir(null);
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        String storedRoot = prefs.getString(MainActivity.KEY_APP_STORAGE_ROOT, "");
+        File root = storedRoot == null || storedRoot.isEmpty() ? null : new File(storedRoot);
+        if (root == null || !root.isDirectory() || !root.canWrite()) {
+            root = context.getExternalFilesDir(null);
+        }
         if (root == null) {
             root = context.getFilesDir();
         }

@@ -1,5 +1,5 @@
 /**
- * 4DO Native Core - Optimized CD-ROM Interface
+ * 3DO Opera Native Core - Optimized CD-ROM Interface
  * 
  * Features:
  * - Memory-mapped file I/O for fast access

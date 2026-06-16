@@ -1,5 +1,5 @@
 /**
- * 4DO Native Core - Memory Manager
+ * 3DO Opera Native Core - Memory Manager
  * Memory handling with ARM NEON optimizations
  */
 

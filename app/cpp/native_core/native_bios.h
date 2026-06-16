@@ -1,5 +1,5 @@
 /**
- * 4DO Native Core - BIOS Loader
+ * 3DO Opera Native Core - BIOS Loader
  * Handles loading and management of 3DO BIOS ROMs
  */
 

@@ -1,5 +1,5 @@
 /**
- * 4DO Native Core - Logging System
+ * 3DO Opera Native Core - Logging System
  * Android logcat integration with log levels
  */
 
@@ -25,7 +25,7 @@ enum class LogLevel {
 
 class Logger {
 public:
-    static constexpr const char* TAG = "4DO-Native";
+    static constexpr const char* TAG = "3DOOpera-Native";
     
     static void verbose(const char* format, ...) {
         va_list args;

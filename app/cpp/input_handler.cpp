@@ -1,7 +1,7 @@
 #include <jni.h>
 #include <android/log.h>
 
-#define LOG_TAG "4DO-Android-Input"
+#define LOG_TAG "3DOOpera-Android-Input"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
@@ -38,7 +38,7 @@ extern "C" void android_input_reset_state() {
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setInputState(JNIEnv *env, jobject thiz, jint button, jboolean pressed) {
+Java_com_fourdo_android_MainActivity_setInputState(JNIEnv *env, jobject thiz, jint button, jboolean pressed) {
     if (button >= 0 && button < BUTTON_MAX) {
         inputState[button] = pressed;
         LOGD("Input button %d %s", button, pressed ? "pressed" : "released");
@@ -47,7 +47,7 @@ Java_com_fourdo_android_EmulatorActivity_setInputState(JNIEnv *env, jobject thiz
 
 // Function to get input state for libopera
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_fourdo_android_EmulatorActivity_getInputState(JNIEnv *env, jobject thiz, jint button) {
+Java_com_fourdo_android_MainActivity_getInputState(JNIEnv *env, jobject thiz, jint button) {
     if (button >= 0 && button < BUTTON_MAX) {
         return inputState[button];
     }

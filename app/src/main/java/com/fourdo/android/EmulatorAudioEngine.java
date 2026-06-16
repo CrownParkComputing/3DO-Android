@@ -79,7 +79,7 @@ final class EmulatorAudioEngine {
                     }
                 }
             }
-        }, "4DO-AudioThread");
+        }, "3DOOpera-AudioThread");
         audioThread.start();
     }
 

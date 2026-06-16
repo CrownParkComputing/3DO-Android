@@ -47,6 +47,16 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+
+/* --- temporary frame profiler: attribute per-frame time to the ARM60 interp vs
+   the MADAM CEL rasterizer vs VDLP, logged every 120 frames to logcat (tag
+   3DO-PROF). Set PROF_3DO 0 to disable. Scopes the dynarec-vs-SIMD decision. --- */
+#define PROF_3DO 0
+#if PROF_3DO
+#include <time.h>
+#include <android/log.h>
+static inline uint64_t prof_ns(void){ struct timespec ts; clock_gettime(CLOCK_MONOTONIC,&ts); return (uint64_t)ts.tv_sec*1000000000ull + (uint64_t)ts.tv_nsec; }
+#endif
 #include <string.h>
 
 static opera_ext_interface_t io_interface;
@@ -166,23 +176,58 @@ opera_3do_process_frame(void)
   cnt  = 0;
   line = 0;
   scanlines = opera_region_scanlines();
+#if PROF_3DO
+  static uint64_t pf_arm=0, pf_cel=0, pf_int=0; static int pf_frames=0;
+  uint64_t pf_t;
+#endif
   do
     {
       if(opera_madam_fsm_get() == FSM_INPROCESS)
         {
+#if PROF_3DO
+          pf_t = prof_ns();
+#endif
           opera_madam_cel_handle();
           opera_madam_fsm_set(FSM_IDLE);
+#if PROF_3DO
+          pf_cel += prof_ns() - pf_t;
+#endif
         }
 
+#if PROF_3DO
+      pf_t = prof_ns();
       cnt += opera_arm_execute();
+      pf_arm += prof_ns() - pf_t;
+#else
+      cnt += opera_arm_execute();
+#endif
       if(cnt >= 32)
         {
+#if PROF_3DO
+          pf_t = prof_ns();
           opera_3do_internal_frame(cnt,&line,field);
+          pf_int += prof_ns() - pf_t;
+#else
+          opera_3do_internal_frame(cnt,&line,field);
+#endif
           cnt -= 32;
         }
     } while(line < scanlines);
 
   field = !field;
+
+#if PROF_3DO
+  if(++pf_frames >= 120)
+    {
+      uint64_t tot = pf_arm + pf_cel + pf_int;
+      double f = (double)pf_frames;
+      __android_log_print(ANDROID_LOG_INFO, "3DO-PROF",
+        "avg/frame: ARM=%.2fms CEL=%.2fms VDLP=%.2fms total=%.2fms | ARM %d%% CEL %d%% VDLP %d%%",
+        pf_arm/1e6/f, pf_cel/1e6/f, pf_int/1e6/f, tot/1e6/f,
+        tot?(int)(pf_arm*100/tot):0, tot?(int)(pf_cel*100/tot):0, tot?(int)(pf_int*100/tot):0);
+      pf_arm = pf_cel = pf_int = 0; pf_frames = 0;
+    }
+#endif
 }
 
 static

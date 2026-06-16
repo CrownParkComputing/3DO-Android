@@ -50,8 +50,8 @@ final class BezelResolver {
             }
         }
 
-        File externalRoot = context.getExternalFilesDir(null);
-        exact = findInCommonRoots(externalRoot, gameKey);
+        File appRoot = SafFileImporter.getManagedAppRoot(context);
+        exact = findInCommonRoots(appRoot, gameKey);
         if (exact != null) {
             return exact;
         }
@@ -87,10 +87,8 @@ final class BezelResolver {
     static int countDownloadedBezels(Context context) {
         Set<String> visited = new HashSet<>();
         int count = 0;
-        File externalRoot = context.getExternalFilesDir(null);
-        count += countPngs(new File(externalRoot, "bezels"), visited, COUNT_MAX_DEPTH);
-        File filesRoot = context.getFilesDir();
-        count += countPngs(new File(filesRoot, "bezels"), visited, COUNT_MAX_DEPTH);
+        File appRoot = SafFileImporter.getManagedAppRoot(context);
+        count += countPngs(new File(appRoot, "bezels"), visited, COUNT_MAX_DEPTH);
         return count;
     }
 
@@ -115,10 +113,8 @@ final class BezelResolver {
     static List<File> listDownloadedBezels(Context context) {
         List<File> bezels = new ArrayList<>();
         Set<String> visited = new HashSet<>();
-        File externalRoot = context.getExternalFilesDir(null);
-        collectPngs(new File(externalRoot, "bezels"), visited, COUNT_MAX_DEPTH, bezels);
-        File filesRoot = context.getFilesDir();
-        collectPngs(new File(filesRoot, "bezels"), visited, COUNT_MAX_DEPTH, bezels);
+        File appRoot = SafFileImporter.getManagedAppRoot(context);
+        collectPngs(new File(appRoot, "bezels"), visited, COUNT_MAX_DEPTH, bezels);
         bezels.sort(Comparator.comparing(file -> file.getName().toLowerCase(Locale.ROOT)));
         return bezels;
     }

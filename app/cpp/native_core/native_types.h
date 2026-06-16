@@ -1,5 +1,5 @@
 /**
- * 4DO Native Core - Type Definitions
+ * 3DO Opera Native Core - Type Definitions
  * Modern C++17 types for 3DO emulation
  */
 

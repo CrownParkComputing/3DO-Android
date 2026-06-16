@@ -1,5 +1,5 @@
 /**
- * 4DO Native Core - NVRAM Manager
+ * 3DO Opera Native Core - NVRAM Manager
  * Handles non-volatile RAM (save games, settings)
  */
 

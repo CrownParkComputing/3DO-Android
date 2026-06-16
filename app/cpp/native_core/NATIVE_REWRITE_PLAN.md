@@ -1,4 +1,4 @@
-# 4DO Native Core Rewrite Plan
+# 3DO Opera Native Core Rewrite Plan
 
 ## Overview
 Rewrite the libopera 3DO emulator core to modern Android-native C++ with enhancements.

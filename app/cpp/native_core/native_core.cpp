@@ -1,5 +1,5 @@
 /**
- * 4DO Native Core - FourdoCore Implementation
+ * 3DO Opera Native Core - FourdoCore Implementation
  *
  * Integrates all native subsystem components (Bios, Nvram, CdromInterface,
  * InputSystem) with the legacy hardware-emulation backend.
@@ -16,6 +16,8 @@
 #include <cstdarg>
 #include <unistd.h>
 #include <time.h>
+#include <sched.h>
+#include <sys/resource.h>
 
 // -----------------------------------------------------------------------
 // Legacy C interface (hardware-emulation backend)
@@ -979,6 +981,20 @@ u32 FourdoCore::audio_available() const {
 // Thread entry
 // -----------------------------------------------------------------------
 void* FourdoCore::thread_entry(void* arg) {
+    // Set real-time priority for emulator thread to minimize scheduling latency.
+    // Use SCHED_FIFO if available (requires android.permission.SET_PROCESS_SCHED)
+    // or fall back to nice value adjustment.
+    struct sched_param param;
+    param.sched_priority = 1; // For SCHED_FIFO, min priority (still real-time)
+    int ret = pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
+    if (ret != 0) {
+        // Fallback: lower nice value for higher priority (requires permission)
+        setpriority(PRIO_PROCESS, 0, -4);
+    }
+    // Allow big cores for computation-heavy emulation
+    // (android_set_thread_type_mask requires native_app_glue context)
+    
+    LOGD("Emulator thread started with real-time priority");
     static_cast<FourdoCore*>(arg)->emulator_loop();
     return nullptr;
 }
@@ -1086,15 +1102,30 @@ void FourdoCore::emulator_loop() {
         }
 
         if (m_paused.load(std::memory_order_acquire)) {
-            usleep(5000);
+            struct timespec ts;
+            ts.tv_sec = 0;
+            ts.tv_nsec = 5000000; // 5ms
+            clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, nullptr);
             continue;
         }
 
         update_pbus_input();
         opera_3do_process_frame();
 
+        // Audio is the realtime master clock: AudioTrack drains the ring at a
+        // fixed 44100 Hz. When the buffer drains toward underrun the emulator
+        // thread is behind realtime (typically a sprite/CEL-heavy frame). The
+        // inline render call competes with emulation for that same thread, so
+        // when audio is starving we drop the video frame outright and hand the
+        // CPU back to emulation+audio. This keeps audio in sync at the cost of
+        // a brief visual stutter, rather than letting the audio underrun.
+        u32 buffered = audio_available();
+        const bool audio_starving = (buffered < 2200); // ~50 ms of audio left
+
         bool should_render = true;
-        if (render_skip_level > 0) {
+        if (audio_starving) {
+            should_render = false;
+        } else if (render_skip_level > 0) {
             should_render = ((render_skip_counter % (render_skip_level + 1)) == 0);
             ++render_skip_counter;
         } else {
@@ -1106,7 +1137,6 @@ void FourdoCore::emulator_loop() {
         }
 
         // Audio-driven pacing
-        u32 buffered = audio_available();
         int64_t elapsed = monotonic_us() - t0;
         int64_t target  = 16667;
         if      (buffered > 40000) target = 20000;
@@ -1115,7 +1145,13 @@ void FourdoCore::emulator_loop() {
         else if (buffered > 3000)  target = 14000;
         else                       target = 0;
 
-        if (elapsed < target) usleep(static_cast<useconds_t>(target - elapsed));
+        if (elapsed < target) {
+            struct timespec ts;
+            ts.tv_sec = 0;
+            ts.tv_nsec = static_cast<long>((target - elapsed) * 1000);
+            // Use relative sleep - more accurate than usleep on Android
+            clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, nullptr);
+        }
 
         frame_ema_us = (frame_ema_us * 7 + elapsed) / 8;
         if (frame_ema_us > 23000 && render_skip_level < 2) ++render_skip_level;

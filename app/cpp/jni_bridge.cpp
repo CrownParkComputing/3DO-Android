@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <sys/stat.h>
 
-#define LOG_TAG "4DO-JNI"
+#define LOG_TAG "3DOOpera-JNI"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
@@ -30,7 +30,7 @@ static bool g_emulator_running = false;
 static std::string g_current_game_path;
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_fourdo_android_EmulatorActivity_initEmulator(JNIEnv* env, jobject thiz, jstring gamePath, jstring biosPath) {
+Java_com_fourdo_android_MainActivity_initEmulator(JNIEnv* env, jobject thiz, jstring gamePath, jstring biosPath) {
     LOGD("Initializing emulator...");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
 
@@ -95,7 +95,7 @@ Java_com_fourdo_android_EmulatorActivity_initEmulator(JNIEnv* env, jobject thiz,
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_shutdownEmulator(JNIEnv* env, jobject thiz) {
+Java_com_fourdo_android_MainActivity_shutdownEmulator(JNIEnv* env, jobject thiz) {
     LOGD("Shutting down emulator...");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
     
@@ -108,7 +108,7 @@ Java_com_fourdo_android_EmulatorActivity_shutdownEmulator(JNIEnv* env, jobject t
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_pauseEmulator(JNIEnv* env, jobject thiz) {
+Java_com_fourdo_android_MainActivity_pauseEmulator(JNIEnv* env, jobject thiz) {
     LOGD("Pausing emulator");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
     
@@ -118,7 +118,7 @@ Java_com_fourdo_android_EmulatorActivity_pauseEmulator(JNIEnv* env, jobject thiz
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_resumeEmulator(JNIEnv* env, jobject thiz) {
+Java_com_fourdo_android_MainActivity_resumeEmulator(JNIEnv* env, jobject thiz) {
     LOGD("Resuming emulator");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
     
@@ -128,7 +128,7 @@ Java_com_fourdo_android_EmulatorActivity_resumeEmulator(JNIEnv* env, jobject thi
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_togglePause(JNIEnv* env, jobject thiz) {
+Java_com_fourdo_android_MainActivity_togglePause(JNIEnv* env, jobject thiz) {
     LOGD("Toggling pause");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
     
@@ -138,7 +138,7 @@ Java_com_fourdo_android_EmulatorActivity_togglePause(JNIEnv* env, jobject thiz) 
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_resetEmulator(JNIEnv* env, jobject thiz) {
+Java_com_fourdo_android_MainActivity_resetEmulator(JNIEnv* env, jobject thiz) {
     LOGD("Resetting emulator");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
     
@@ -148,7 +148,7 @@ Java_com_fourdo_android_EmulatorActivity_resetEmulator(JNIEnv* env, jobject thiz
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_fourdo_android_EmulatorActivity_loadCdImage(JNIEnv* env, jobject thiz, jstring gamePath) {
+Java_com_fourdo_android_MainActivity_loadCdImage(JNIEnv* env, jobject thiz, jstring gamePath) {
     LOGD("Loading CD image...");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
 
@@ -169,7 +169,7 @@ Java_com_fourdo_android_EmulatorActivity_loadCdImage(JNIEnv* env, jobject thiz, 
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_fourdo_android_EmulatorActivity_drainAudioFrames(JNIEnv* env, jobject thiz, jintArray packedFrames) {
+Java_com_fourdo_android_MainActivity_drainAudioFrames(JNIEnv* env, jobject thiz, jintArray packedFrames) {
     if (packedFrames == nullptr) {
         return 0;
     }
@@ -190,7 +190,7 @@ Java_com_fourdo_android_EmulatorActivity_drainAudioFrames(JNIEnv* env, jobject t
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_fourdo_android_EmulatorActivity_getStatus(JNIEnv* env, jobject thiz) {
+Java_com_fourdo_android_MainActivity_getStatus(JNIEnv* env, jobject thiz) {
     const char* status = emulator_get_status();
     return env->NewStringUTF(status ? status : "Unknown");
 }
@@ -290,7 +290,7 @@ Java_com_fourdo_android_MainActivity_init(JNIEnv* env, jobject thiz) {
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_fourdo_android_EmulatorActivity_saveNVRAM(JNIEnv* env, jobject thiz, jstring path) {
+Java_com_fourdo_android_MainActivity_saveNVRAM(JNIEnv* env, jobject thiz, jstring path) {
     LOGD("Saving NVRAM to file...");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
 
@@ -313,7 +313,7 @@ Java_com_fourdo_android_EmulatorActivity_saveNVRAM(JNIEnv* env, jobject thiz, js
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_fourdo_android_EmulatorActivity_loadNVRAM(JNIEnv* env, jobject thiz, jstring path) {
+Java_com_fourdo_android_MainActivity_loadNVRAM(JNIEnv* env, jobject thiz, jstring path) {
     LOGD("Loading NVRAM from file...");
     std::lock_guard<std::mutex> lock(g_emulator_mutex);
 
@@ -352,12 +352,12 @@ extern "C" {
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_fourdo_android_EmulatorActivity_getStateSize(JNIEnv* /*env*/, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_getStateSize(JNIEnv* /*env*/, jobject /*thiz*/) {
     return static_cast<jint>(emulator_state_size());
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_fourdo_android_EmulatorActivity_saveState(JNIEnv* env, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_saveState(JNIEnv* env, jobject /*thiz*/,
                                                     jbyteArray buf) {
     if (buf == nullptr) return JNI_FALSE;
     jsize len = env->GetArrayLength(buf);
@@ -369,7 +369,7 @@ Java_com_fourdo_android_EmulatorActivity_saveState(JNIEnv* env, jobject /*thiz*/
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_fourdo_android_EmulatorActivity_loadState(JNIEnv* env, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_loadState(JNIEnv* env, jobject /*thiz*/,
                                                     jbyteArray buf) {
     if (buf == nullptr) return JNI_FALSE;
     jsize len = env->GetArrayLength(buf);
@@ -385,18 +385,18 @@ Java_com_fourdo_android_EmulatorActivity_loadState(JNIEnv* env, jobject /*thiz*/
 // -----------------------------------------------------------------------
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setRegion(JNIEnv* /*env*/, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setRegion(JNIEnv* /*env*/, jobject /*thiz*/,
                                                     jint region) {
     emulator_set_region(static_cast<int>(region));
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_fourdo_android_EmulatorActivity_getRegion(JNIEnv* /*env*/, jobject /*thiz*/) {
+Java_com_fourdo_android_MainActivity_getRegion(JNIEnv* /*env*/, jobject /*thiz*/) {
     return static_cast<jint>(emulator_get_region());
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_fourdo_android_EmulatorActivity_setCpuSpeed(JNIEnv* /*env*/, jobject /*thiz*/,
+Java_com_fourdo_android_MainActivity_setCpuSpeed(JNIEnv* /*env*/, jobject /*thiz*/,
                                                       jfloat multiplier) {
     emulator_set_cpu_speed(static_cast<float>(multiplier));
 }

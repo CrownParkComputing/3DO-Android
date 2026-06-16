@@ -34,10 +34,7 @@ final class BezelDownloader {
             throw new IOException("Missing GitHub ZIP URL");
         }
 
-        File appStorage = context.getExternalFilesDir(null);
-        if (appStorage == null) {
-            appStorage = context.getFilesDir();
-        }
+        File appStorage = SafFileImporter.getManagedAppRoot(context);
 
         File root = new File(appStorage, "bezels/github");
         File destination = new File(root, "latest");
@@ -81,7 +78,7 @@ final class BezelDownloader {
         connection.setConnectTimeout(15000);
         connection.setReadTimeout(45000);
         connection.setInstanceFollowRedirects(false);
-        connection.setRequestProperty("User-Agent", "4DO-Android");
+        connection.setRequestProperty("User-Agent", "3DOOpera-Android");
 
         int status = connection.getResponseCode();
         if (status >= 300 && status < 400) {

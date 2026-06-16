@@ -1,5 +1,5 @@
 /**
- * 4DO Native Core - Audio System
+ * 3DO Opera Native Core - Audio System
  * High-performance audio output with AAudio (Android O+) and OpenSL ES fallback
  */
 

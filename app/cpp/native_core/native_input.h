@@ -1,5 +1,5 @@
 /**
- * 4DO Native Core - Input System
+ * 3DO Opera Native Core - Input System
  * Controller input handling with remapping support
  */
 

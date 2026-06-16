@@ -36,7 +36,7 @@
 #include <string.h>
 #include <android/log.h>
 
-#define CDROM_TAG "4DO-CDROM"
+#define CDROM_TAG "3DOOpera-CDROM"
 
 /* Throttled per-command logging: log each unique cmd once, READ_DATA up to 30 times */
 static uint32_t s_cdrom_cmd_seen = 0;   /* bitmask for cmd codes 0x00-0x1F */

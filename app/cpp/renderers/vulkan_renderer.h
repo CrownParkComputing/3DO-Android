@@ -131,5 +131,13 @@ private:
 
     VkSemaphore m_imageAvailable = VK_NULL_HANDLE;
     VkSemaphore m_renderFinished = VK_NULL_HANDLE;
-    VkFence m_inFlightFence = VK_NULL_HANDLE;
+    // One fence per swapchain image. With a single shared fence (the previous
+    // design), the emulator thread spins on vkWaitForFences(..., UINT64_MAX)
+    // every frame, blocking the emulation pace on the GPU's pace. Audio is
+    // generated on the emulation thread, so the audio thread reads ahead while
+    // the GPU is busy and then the audio timestamps fall out of sync with the
+    // displayed video. Per-image fences let the CPU keep producing frame N+1
+    // into a different swapchain image while the GPU is still finishing frame
+    // N — exactly the contract MAILBOX present assumes.
+    std::vector<VkFence> m_inFlightFences;
 };

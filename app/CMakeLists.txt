@@ -174,6 +174,28 @@ if(GLSLANG_VALIDATOR)
 endif()
 
 # Add all source files
+# ---- Stubs for system HAL libs that Turnip DT_NEEDs ----
+# libhardware.so / libnativewindow.so / libsync.so are Android system
+# libraries that the classloader-namespace sandbox does not expose to
+# apps. Turnip's libvulkan_freedreno.so lists them in DT_NEEDED, so a
+# plain dlopen() of Turnip from the app fails with
+#     "library libhardware.so not found in namespace classloader-namespace"
+# even when the .so is co-located at getFilesDir()/drivers/.
+#
+# We build stub shared libraries providing just the 9 symbols Turnip
+# actually references. They are co-located with the user-imported Turnip
+# .so at getFilesDir()/drivers/ so the dynamic loader's "DT_NEEDED
+# same-directory search" finds them. The runtime is told to use these
+# stubs in MainActivity.applyRendererDefaults() before setVulkanDriverPath
+# is called.
+add_library(hardware SHARED cpp/stubs/libhardware.cpp)
+add_library(nativewindow SHARED cpp/stubs/libnativewindow.cpp)
+add_library(sync SHARED cpp/stubs/libsync.cpp)
+
+# Stubs have no dependencies on libc++ — only libc/libdl/liblog, which the
+# classloader-namespace allows. We don't link to ${log-lib} either, since
+# we don't log from the stubs.
+
 add_library(
     native-lib
     SHARED
@@ -255,7 +277,11 @@ target_link_options(native-lib PRIVATE "-Wl,-z,max-page-size=16384")
 # its codec helper libraries in EVERY build type. These compile options are
 # appended after the build-type flags, so the trailing -O3 overrides the
 # Debug -O0 (last -O wins for Clang). The app/Java layer stays fully debuggable.
-set(CORE_OPT_FLAGS -O3 -fno-math-errno -funroll-loops)
+set(CORE_OPT_FLAGS -O3 -fno-math-errno -ffast-math -funroll-loops)
+# ARM64: enable NEON and other ARMv8-A optimizations
+if(${ANDROID_ABI} STREQUAL "arm64-v8a")
+    list(APPEND CORE_OPT_FLAGS -march=armv8-a -mtune=cortex-a76)
+endif()
 target_compile_options(native-lib PRIVATE ${CORE_OPT_FLAGS})
 target_compile_definitions(native-lib PRIVATE NDEBUG)
 target_compile_options(chdr      PRIVATE ${CORE_OPT_FLAGS})
