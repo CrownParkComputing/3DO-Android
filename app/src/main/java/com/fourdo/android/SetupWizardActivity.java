@@ -112,11 +112,9 @@ public class SetupWizardActivity extends AppCompatActivity {
         selectAppButton.setOnClickListener(v -> confirmAppStorage());
         selectGameButton.setOnClickListener(v -> openGamePicker());
 
-        // "Use existing folder" relied on raw /storage path access, which is no
-        // longer permitted; hide it and rely on the SAF import steps instead.
         Button useExistingButton = findViewById(R.id.use_existing_button);
         if (useExistingButton != null) {
-            useExistingButton.setVisibility(View.GONE);
+            useExistingButton.setOnClickListener(v -> openExistingFolderPicker());
         }
 
         nextButton.setOnClickListener(v -> goToNextStep());
@@ -225,41 +223,17 @@ public class SetupWizardActivity extends AppCompatActivity {
         startActivityForResult(intent, REQUEST_EXISTING_FOLDER);
     }
 
-    /** Validate a chosen folder as a ready 3DO Opera root and, if good, complete
-     *  setup and jump straight to the launcher. */
-    private void adoptExistingFolder(String root) {
-        File rootDir = new File(root);
-        File biosDir = new File(rootDir, "bios");
-        File gamesDir = new File(rootDir, "games");
-        if (!rootDir.isDirectory() || !biosDir.isDirectory()) {
-            Toast.makeText(this, "That folder has no 'bios' subfolder — pick a 3DO Opera folder.", Toast.LENGTH_LONG).show();
-            return;
-        }
-        // find a BIOS rom in bios/
-        File foundBios = null;
-        File[] biosFiles = biosDir.listFiles();
-        if (biosFiles != null) {
-            for (File f : biosFiles) {
-                String n = f.getName().toLowerCase();
-                if (f.isFile() && (n.endsWith(".bin") || n.endsWith(".rom"))) {
-                    // prefer the standard panafz10 if present
-                    if (n.contains("panafz10")) { foundBios = f; break; }
-                    if (foundBios == null) foundBios = f;
-                }
-            }
-        }
-        if (foundBios == null) {
-            Toast.makeText(this, "No BIOS (.bin/.rom) found in the folder's bios/ — add one first.", Toast.LENGTH_LONG).show();
-            return;
-        }
+    /** Persist the adopted folder's imported paths and jump to the launcher. */
+    private void finishAdopt(SafFileImporter.AdoptResult result) {
         SharedPreferences.Editor e = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE).edit();
         e.putBoolean("setup_completed", true);
-        e.putString(MainActivity.KEY_APP_STORAGE_ROOT, root);
-        e.putString(MainActivity.KEY_BIOS_PATH, foundBios.getAbsolutePath());
-        e.putString("bios_folder", biosDir.getAbsolutePath());
-        if (gamesDir.isDirectory()) e.putString(MainActivity.KEY_LIBRARY_FOLDER, gamesDir.getAbsolutePath());
+        e.putString(MainActivity.KEY_APP_STORAGE_ROOT, SafFileImporter.getManagedAppRootPath(this));
+        e.putString(MainActivity.KEY_BIOS_PATH, result.biosPath);
+        if (result.libraryPath != null) {
+            e.putString(MainActivity.KEY_LIBRARY_FOLDER, result.libraryPath);
+        }
         e.apply();
-        Toast.makeText(this, "Using " + rootDir.getName() + " — setup complete.", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Folder imported — setup complete.", Toast.LENGTH_LONG).show();
         startActivity(new Intent(this, com.fourdo.android.MainActivity.class));
         finish();
     }
@@ -311,17 +285,19 @@ public class SetupWizardActivity extends AppCompatActivity {
                         }
                         break;
                     case REQUEST_EXISTING_FOLDER: {
-                        int f2 = data.getFlags();
-                        if ((f2 & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0)
-                            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                        if ((f2 & Intent.FLAG_GRANT_WRITE_URI_PERMISSION) != 0)
-                            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                        String root = getFileForTreeUri(uri);
-                        if (root == null || root.isEmpty()) {
-                            Toast.makeText(this, "Couldn't resolve that folder's path.", Toast.LENGTH_LONG).show();
-                        } else {
-                            adoptExistingFolder(root);
-                        }
+                        Toast.makeText(this, "Importing folder...", Toast.LENGTH_SHORT).show();
+                        final Uri treeUri = uri;
+                        new Thread(() -> {
+                            try {
+                                SafFileImporter.AdoptResult result =
+                                        SafFileImporter.adoptExistingTree(this, treeUri);
+                                runOnUiThread(() -> finishAdopt(result));
+                            } catch (Exception ex) {
+                                runOnUiThread(() -> Toast.makeText(this,
+                                        "Couldn't use that folder: " + ex.getMessage(),
+                                        Toast.LENGTH_LONG).show());
+                            }
+                        }, "wizard-adopt").start();
                         break;
                     }
                     case REQUEST_GAME:

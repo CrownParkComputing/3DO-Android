@@ -26,6 +26,10 @@ on:
 permissions:
   contents: read
 
+# Run JavaScript actions on Node.js 24 (Node 20 is deprecated on GH runners).
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 concurrency:
   group: play-store-aab-${{ github.ref }}
   cancel-in-progress: true
@@ -90,6 +94,14 @@ jobs:
         name: 3do-opera-signed-play-store-aab
         path: app/build/outputs/bundle/release/app-release.aab
         if-no-files-found: error
+        retention-days: 7
+
+    - name: Upload R8 deobfuscation mapping
+      uses: actions/upload-artifact@v4
+      with:
+        name: 3do-opera-mapping
+        path: app/build/outputs/mapping/release/mapping.txt
+        if-no-files-found: warn
         retention-days: 7
 
     - name: Remove signing keystore

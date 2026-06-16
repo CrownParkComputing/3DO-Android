@@ -185,6 +185,67 @@ public final class SafFileImporter {
         return new ImportResult(destinationDir.getAbsolutePath(), importedCount);
     }
 
+    /**
+     * Adopt a pre-built "3DO Opera" folder (containing bios/ and optionally
+     * games/) picked via SAF, copying its contents into app-specific storage.
+     * Returns the imported BIOS path and (optional) library path. Uses
+     * DocumentFile/content URIs — no raw /storage access or all-files permission.
+     */
+    public static AdoptResult adoptExistingTree(Context context, Uri treeUri) throws IOException {
+        takePersistableReadPermission(context, treeUri);
+        DocumentFile tree = DocumentFile.fromTreeUri(context, treeUri);
+        if (tree == null || !tree.isDirectory()) {
+            throw new IOException("Selected location is not a readable folder");
+        }
+        DocumentFile biosDir = tree.findFile("bios");
+        if (biosDir == null || !biosDir.isDirectory()) {
+            throw new IOException("That folder has no 'bios' subfolder — pick a 3DO Opera folder");
+        }
+        DocumentFile chosenBios = null;
+        DocumentFile[] biosChildren = biosDir.listFiles();
+        for (DocumentFile f : biosChildren) {
+            if (!f.isFile()) continue;
+            String n = f.getName() == null ? "" : f.getName().toLowerCase();
+            if (n.endsWith(".bin") || n.endsWith(".rom")) {
+                if (n.contains("panafz10")) { chosenBios = f; break; }
+                if (chosenBios == null) chosenBios = f;
+            }
+        }
+        if (chosenBios == null) {
+            throw new IOException("No BIOS (.bin/.rom) found in the folder's bios/");
+        }
+        File biosDestDir = getManagedBiosDirectory(context);
+        if (!biosDestDir.exists() && !biosDestDir.mkdirs()) {
+            throw new IOException("Failed to create BIOS directory");
+        }
+        File biosDest = new File(biosDestDir, sanitizeName(
+                chosenBios.getName() == null ? "bios.bin" : chosenBios.getName()));
+        copyUriToFile(context, chosenBios.getUri(), biosDest);
+
+        String libraryPath = null;
+        DocumentFile gamesDir = tree.findFile("games");
+        if (gamesDir != null && gamesDir.isDirectory()) {
+            String name = gamesDir.getName();
+            File destDir = new File(getManagedAppRoot(context),
+                    sanitizeName(name == null || name.isEmpty() ? "games" : name));
+            int imported = copySupportedTreeFiles(context, gamesDir, destDir);
+            if (imported > 0) {
+                libraryPath = destDir.getAbsolutePath();
+            }
+        }
+        return new AdoptResult(biosDest.getAbsolutePath(), libraryPath);
+    }
+
+    /** Result of {@link #adoptExistingTree}. */
+    public static final class AdoptResult {
+        public final String biosPath;
+        public final String libraryPath; // null if no games/ folder
+        AdoptResult(String biosPath, String libraryPath) {
+            this.biosPath = biosPath;
+            this.libraryPath = libraryPath;
+        }
+    }
+
     public static File getManagedLibraryDirectory(Context context) {
         return new File(getManagedAppRoot(context), LIBRARY_DIR_NAME);
     }

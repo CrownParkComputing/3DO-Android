@@ -12,8 +12,8 @@ android {
         applicationId "com.fourdo.android"
         minSdk 24
         targetSdk 35
-        versionCode 11
-        versionName "2.0.9"
+        versionCode 12
+        versionName "2.0.10"
 
         buildConfigField "String", "IGDB_CLIENT_ID", "\"r1xsns8dbmeb0xxualwaotref8o9ti\""
         buildConfigField "String", "IGDB_CLIENT_SECRET", "\"d30omhdyjuebh9h8c6jvg5cntz75n7\""
@@ -41,7 +41,11 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            // R8 code shrinking/obfuscation. Produces mapping.txt (the Play
+            // "deobfuscation file") and reduces app size. Resource shrinking is
+            // left off since some assets are resolved indirectly.
+            minifyEnabled true
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
