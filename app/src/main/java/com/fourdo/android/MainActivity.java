@@ -444,13 +444,15 @@ public final class MainActivity extends AppCompatActivity {
 
     /** True if first-run wizard hasn't completed or any path is missing. */
     private boolean needsSetup() {
+        // App storage is always app-specific now (no permission, no user choice),
+        // so KEY_APP_STORAGE_ROOT is kept in sync automatically rather than gated.
+        prefs.edit().putString(KEY_APP_STORAGE_ROOT,
+                SafFileImporter.getManagedAppRootPath(this)).apply();
         boolean completed = prefs.getBoolean(PREF_SETUP_COMPLETED, false);
         String biosPath = prefs.getString(KEY_BIOS_PATH, "");
-        String appRoot = prefs.getString(KEY_APP_STORAGE_ROOT, "");
         String libraryPath = prefs.getString(KEY_LIBRARY_FOLDER, "");
         return !completed
                 || !EmulatorPathStore.isValidFilePath(biosPath)
-                || !EmulatorPathStore.isValidDirectoryPath(appRoot)
                 || !EmulatorPathStore.isValidDirectoryPath(libraryPath);
     }
 

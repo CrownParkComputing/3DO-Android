@@ -210,17 +210,26 @@ public final class SafFileImporter {
         return getManagedAppRoot(context);
     }
 
+    /**
+     * The managed root is always app-specific external storage (falling back to
+     * internal). App-specific dirs are readable/writable by raw {@link File}
+     * path on every Android version WITHOUT the MANAGE_EXTERNAL_STORAGE /
+     * "All files access" permission, so all imported BIOS/library/game copies
+     * live here and the library can be scanned and loaded by path. A custom
+     * arbitrary /storage path is intentionally NOT honoured — that is what used
+     * to require all-files access.
+     */
     private static SharedStorageRoot getSharedStorageRoot(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        String storedRoot = prefs.getString(MainActivity.KEY_APP_STORAGE_ROOT, "");
-        File root = storedRoot == null || storedRoot.isEmpty() ? null : new File(storedRoot);
-        if (root == null || !root.isDirectory() || !root.canWrite()) {
-            root = context.getExternalFilesDir(null);
-        }
+        File root = context.getExternalFilesDir(null);
         if (root == null) {
             root = context.getFilesDir();
         }
         return new SharedStorageRoot(root);
+    }
+
+    /** Absolute path of the managed (app-specific) storage root. */
+    static String getManagedAppRootPath(Context context) {
+        return getManagedAppRoot(context).getAbsolutePath();
     }
 
     private static int copySupportedTreeFiles(Context context, DocumentFile sourceDir, File destDir) throws IOException {

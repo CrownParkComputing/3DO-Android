@@ -12,8 +12,8 @@ android {
         applicationId "com.fourdo.android"
         minSdk 24
         targetSdk 35
-        versionCode 10
-        versionName "2.0.8"
+        versionCode 11
+        versionName "2.0.9"
 
         buildConfigField "String", "IGDB_CLIENT_ID", "\"r1xsns8dbmeb0xxualwaotref8o9ti\""
         buildConfigField "String", "IGDB_CLIENT_SECRET", "\"d30omhdyjuebh9h8c6jvg5cntz75n7\""

@@ -93,7 +93,10 @@ public class SetupWizardActivity extends AppCompatActivity {
 
         SharedPreferences prefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
         selectedBiosPath = prefs.getString(MainActivity.KEY_BIOS_PATH, "");
-        selectedAppStorageFolder = prefs.getString(MainActivity.KEY_APP_STORAGE_ROOT, "");
+        // App data always lives in app-specific storage (no permission needed),
+        // so this step is pre-satisfied rather than asking for a folder.
+        selectedAppStorageFolder = SafFileImporter.getManagedAppRootPath(this);
+        prefs.edit().putString(MainActivity.KEY_APP_STORAGE_ROOT, selectedAppStorageFolder).apply();
         selectedGamesFolder = prefs.getString(MainActivity.KEY_LIBRARY_FOLDER, "");
         if (selectedBiosPath != null && !selectedBiosPath.isEmpty()) {
             biosStatusText.setText(getString(R.string.setup_bios_selected, getDisplayPath(selectedBiosPath)));
@@ -106,12 +109,14 @@ public class SetupWizardActivity extends AppCompatActivity {
         }
 
         selectBiosButton.setOnClickListener(v -> openBiosPicker());
-        selectAppButton.setOnClickListener(v -> openAppFolderPicker());
+        selectAppButton.setOnClickListener(v -> confirmAppStorage());
         selectGameButton.setOnClickListener(v -> openGamePicker());
 
+        // "Use existing folder" relied on raw /storage path access, which is no
+        // longer permitted; hide it and rely on the SAF import steps instead.
         Button useExistingButton = findViewById(R.id.use_existing_button);
         if (useExistingButton != null) {
-            useExistingButton.setOnClickListener(v -> openExistingFolderPicker());
+            useExistingButton.setVisibility(View.GONE);
         }
 
         nextButton.setOnClickListener(v -> goToNextStep());
@@ -204,9 +209,13 @@ public class SetupWizardActivity extends AppCompatActivity {
         startActivityForResult(intent, REQUEST_GAME);
     }
 
-    private void openAppFolderPicker() {
-        Intent intent = SafFileImporter.createOpenDocumentTreeIntent();
-        startActivityForResult(intent, REQUEST_APP_FOLDER);
+    /** App data lives in app-specific storage; just confirm and advance. */
+    private void confirmAppStorage() {
+        selectedAppStorageFolder = SafFileImporter.getManagedAppRootPath(this);
+        getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE).edit()
+                .putString(MainActivity.KEY_APP_STORAGE_ROOT, selectedAppStorageFolder).apply();
+        appStatusText.setText(getString(R.string.setup_app_selected, getDisplayPath(selectedAppStorageFolder)));
+        nextButton.setEnabled(true);
     }
 
     /** Pick a pre-built 3DO Opera folder (already containing bios/ + games/) and
